@@ -32,6 +32,27 @@ second, and **measured**: every performance claim comes from a run against llama
 vLLM on the same prompts and the same clock, and the cases where it loses are published with
 the rest.
 
+## Why it exists
+
+It began as an experiment: a way to learn how modern AI actually runs — transformers, LLMs,
+inference — by implementing it rather than reading about it, and to learn Rust properly along
+the way. It kept going because the questions turned out to be worth chasing.
+
+- **Learning by building it.** Attention, KV cache, quantisation, paged decode, sampling,
+  continuous batching, then diffusion and audio models: papers and other engines explain the
+  shape, but writing each one yourself is what exposes what the explanation left out — and why
+  the fast version is fast.
+- **Full Rust, all the way down.** No Python at runtime, no framework underneath: the tensor
+  substrate, the kernels and the model implementations are the project. The constraint *is* the
+  point — it forces each layer to be understood rather than imported.
+- **Speed as a discipline, not a boast.** Chasing throughput is what turns vague design
+  questions into concrete ones. It is also why nothing here is claimed without a run behind it.
+- **Joules count as much as tokens.** A local engine runs on hardware someone is paying for and
+  sitting next to, so energy per token is a first-class number rather than an afterthought.
+- **Nothing is too small to be worth it.** A 0.5B model on a laptop CPU is as much a target as a
+  large one spread across several GPUs; "too niche to optimise" is not an accepted answer.
+- **Everything stays on your machine.** Your models, your hardware, no call out.
+
 ## Repositories
 
 Being split out of a single working tree. Names without a link have not landed yet.
