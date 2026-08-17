@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+brand/_work/variants/
+brand/_work/preview.html
