@@ -34,13 +34,16 @@ the rest.
 
 ## Repositories
 
+Being split out of a single working tree — the names below are where each piece is headed,
+and they will become links as the repositories land.
+
 | Repo | What it is |
 |------|------------|
-| [**loken**](https://github.com/loken-ai/loken) | The inference **server** — engine, tensor substrate, all modalities, OpenAI/Ollama-compatible API |
-| [**loken-verve**](https://github.com/loken-ai/loken-verve) | **verve** — a local-first terminal coding agent |
-| [**loken-gui**](https://github.com/loken-ai/loken-gui) | Desktop **GUI client** for any Ollama/OpenAI-compatible server |
-| [**loken-bench**](https://github.com/loken-ai/loken-bench) | Benchmarks one local inference server against another, on the same prompts and the same clock |
-| [**loken-cudarc**](https://github.com/loken-ai/loken-cudarc) | Transitional CUDA-driver fork (goal: upstream and retire) |
+| **loken** | The inference **server** — engine, tensor substrate, all modalities, OpenAI/Ollama-compatible API |
+| **loken-verve** | **verve** — a local-first terminal coding agent |
+| **loken-gui** | Desktop **GUI client** for any Ollama/OpenAI-compatible server |
+| **loken-bench** | Benchmarks one local inference server against another, on the same prompts and the same clock |
+| **loken-cudarc** | Transitional CUDA-driver fork (goal: upstream and retire) |
 
 ## Status
 
