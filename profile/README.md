@@ -54,34 +54,34 @@ each model remains under its own license and terms.
 
 None of this would exist without the projects that mapped the territory first.
 
-**[ggml](https://github.com/ggml-org/ggml)** is the layer under much of this: the quantisation
-block formats LOKEN dequantises — the k-quants above all — and **GGUF**, the container it reads.
-**[llama.cpp](https://github.com/ggml-org/llama.cpp)** built that into an engine and proved
-quantised local inference was practical.
-**[Ollama](https://github.com/ollama/ollama)** set the API and the model-management ergonomics
-that LOKEN stays compatible with.
-**[vLLM](https://github.com/vllm-project/vllm)** worked out continuous batching and paged
-attention, the ideas behind the concurrent decode path.
-They are also the yardstick: performance claims here come from runs against them, on the same
-prompts and the same clock, and the cases where LOKEN loses are published with the rest.
+| Project | What LOKEN owes it |
+|---------|--------------------|
+| [**ggml**](https://github.com/ggml-org/ggml) | The quantisation block formats it dequantises — the k-quants above all — and **GGUF**, the container it reads |
+| [**llama.cpp**](https://github.com/ggml-org/llama.cpp) | Building those into an engine, and proving quantised local inference was practical |
+| [**Ollama**](https://github.com/ollama/ollama) | The API and the model-management ergonomics it stays compatible with |
+| [**vLLM**](https://github.com/vllm-project/vllm) | Continuous batching and paged attention — the ideas behind the concurrent decode path |
+| [**candle**](https://github.com/huggingface/candle) | Being where this project started: a Rust tensor library with real CUDA support, which is what made a full-Rust engine plausible at all |
 
-**[candle](https://github.com/huggingface/candle)** deserves a separate word, because it is
-where this project started. A Rust tensor library with real CUDA support is what made a
-full-Rust engine plausible in the first place.
+Three of them are also the yardstick. Performance claims here come from runs against
+llama.cpp, Ollama and vLLM — same prompts, same clock — and the cases where LOKEN loses are
+published with the rest.
 
 ### Why LOKEN no longer builds on candle
 
-Not because anything is wrong with it — because the two projects want different things. candle
-is a general-purpose tensor library, and a general-purpose op is the right default right up
-until you start measuring yourself against vLLM.
+Not because anything is wrong with it. The two projects simply want different things: candle is
+a general-purpose tensor library, and a general-purpose op is the right default right up until
+you start measuring yourself against vLLM.
 
-The break came out of profiling rather than principle. In the batched decode sampler, candle's
-`argmax` and the per-row host scan around it cost roughly 2 ms per step at batch 8 — that one
-generic op accounted for essentially the whole of the throughput gap against vLLM at that batch
-size, and a native kernel closed most of it. The same shape appeared in the sampled path, where
-per-row softmax, sort and multinomial ran on the device. Every one of those fixes meant owning
-the kernel outright, and past a certain number of them the generic layer underneath is no
-longer carrying anything.
+The break came out of profiling rather than principle. Two examples, both in the sampler:
+
+- **Batched greedy decode.** candle's `argmax`, plus the per-row host scan around it, cost
+  roughly 2 ms per step at batch 8. That one generic op accounted for essentially the whole of
+  the throughput gap against vLLM at that batch size; a native kernel closed most of it.
+- **The sampled path.** Per-row softmax, sort and multinomial were running on the device, once
+  per row, per step.
+
+Every one of those fixes meant owning the kernel outright — and past a certain number of them,
+the generic layer underneath is no longer carrying anything.
 
 So LOKEN runs on its own tensor substrate, and candle's source stays what it has always been
 here: a reference worth reading.
