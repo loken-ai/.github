@@ -34,8 +34,7 @@ the rest.
 
 ## Repositories
 
-Being split out of a single working tree — the names below are where each piece is headed,
-and they will become links as the repositories land.
+Being split out of a single working tree. Names without a link have not landed yet.
 
 | Repo | What it is |
 |------|------------|
@@ -43,7 +42,7 @@ and they will become links as the repositories land.
 | **loken-verve** | **verve** — a local-first terminal coding agent |
 | **loken-gui** | Desktop **GUI client** for any Ollama/OpenAI-compatible server |
 | **loken-bench** | Benchmarks one local inference server against another, on the same prompts and the same clock |
-| **loken-cudarc** | Transitional CUDA-driver fork (goal: upstream and retire) |
+| [**loken-cudarc**](https://github.com/loken-ai/loken-cudarc) | The local delta over [cudarc](https://github.com/chelsea0x3b/cudarc), vendored with its patch set — kept only until the patches are upstream |
 
 ## Status
 
