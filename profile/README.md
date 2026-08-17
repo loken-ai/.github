@@ -54,8 +54,10 @@ each model remains under its own license and terms.
 
 None of this would exist without the projects that mapped the territory first.
 
-**[llama.cpp](https://github.com/ggml-org/llama.cpp)** made quantised local inference practical
-and defined **GGUF**, the format LOKEN loads.
+**[ggml](https://github.com/ggml-org/ggml)** is the layer under much of this: the quantisation
+block formats LOKEN dequantises — the k-quants above all — and **GGUF**, the container it reads.
+**[llama.cpp](https://github.com/ggml-org/llama.cpp)** built that into an engine and proved
+quantised local inference was practical.
 **[Ollama](https://github.com/ollama/ollama)** set the API and the model-management ergonomics
 that LOKEN stays compatible with.
 **[vLLM](https://github.com/vllm-project/vllm)** worked out continuous batching and paged
