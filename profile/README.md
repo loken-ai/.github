@@ -53,6 +53,37 @@ the way. It kept going because the questions turned out to be worth chasing.
   large one spread across several GPUs; "too niche to optimise" is not an accepted answer.
 - **Everything stays on your machine.** Your models, your hardware, no call out.
 
+## How this was built, and what to do if you recognise your code
+
+A large part of this was **vibe coded** — written with an AI assistant in the loop, at a volume
+no single pair of hands produces in the same time. Saying so plainly matters, because it tells
+you what to trust and what to check. What is *not* delegated: every design decision, and every
+number. Nothing here is claimed because a model sounded sure of it; performance statements come
+from a run against llama.cpp, Ollama or vLLM, and the losses are published with the wins.
+
+**Attribution was taken seriously, and it can still have failed.** Where an implementation
+follows another project, that project is named: each repository's `NOTICE.md` lists every port,
+adaptation and derived kernel with its upstream and its licence. Nothing was knowingly taken
+without credit. But this is a large surface built fast, and good intentions are not a guarantee
+— **if you recognise your work and it is not credited, or you would rather it were not here at
+all, open an issue.** It will be attributed or removed, promptly and without argument.
+
+**The other direction is open too.** If anything here is useful to the projects it learned from
+— a kernel, a measurement method, a bug — take it, no attribution needed. The cudarc patches
+already ship with their route upstream written down; the same offer stands for the rest.
+
+## What is being tried
+
+Some of it works, some is half-built, and some will not survive contact with measurement:
+
+- **Clustering** — spreading work across more than one machine, and deciding per request
+  whether a second node earns the hop it costs. A single request never gets faster for a peer
+  existing; what a peer buys is served requests per second, and that is what is being measured.
+- **Vulkan and ROCm** — CUDA and OpenCL are covered today, which leaves out a lot of the
+  hardware people actually own.
+- **Energy as a target, not a report** — joules per token is already measured; the open question
+  is which placement and scheduling decisions can be made *from* it rather than judged by it.
+
 ## Repositories
 
 Being split out of a single working tree. Names without a link have not landed yet.
@@ -62,8 +93,8 @@ Being split out of a single working tree. Names without a link have not landed y
 | **loken** | The inference **server** — engine, tensor substrate, all modalities, OpenAI/Ollama-compatible API |
 | **loken-verve** | **verve** — a local-first terminal coding agent |
 | **loken-gui** | Desktop **GUI client** for any Ollama/OpenAI-compatible server |
-| **loken-assay** | The `assay` command — benchmarks one local inference server against another, on the same prompts and the same clock |
-| [**loken-cudarc**](https://github.com/loken-ai/loken-cudarc) | The local delta over [cudarc](https://github.com/chelsea0x3b/cudarc), vendored with its patch set — kept only until the patches are upstream |
+| **assay** | The `assay` command — benchmarks one local inference server against another, on the same prompts and the same clock |
+| [**cudarc**](https://github.com/loken-ai/cudarc) | The local delta over [cudarc](https://github.com/chelsea0x3b/cudarc), vendored with its patch set — kept only until the patches are upstream |
 
 ## Status
 
