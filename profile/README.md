@@ -56,11 +56,13 @@ It kept going because the questions turned out to be worth chasing.
 
 ## How this was built
 
-A large part of it was **vibe coded** — written with an AI assistant in the loop, at a volume
-no single pair of hands produces in the same time.
+**Some of it was vibe coded** — written with an AI assistant in the loop, at a volume no
+single pair of hands produces in the same time. Not all of it, and not the same way
+everywhere: the further a piece is from something measurable, the less it was delegated.
 
-Saying so plainly matters, because it tells you what to check. What is *not* delegated: every
-design decision, and every number. Nothing here is claimed because a model sounded sure of it.
+Saying so matters, because it tells you what to check. What is never handed over is the
+design and the numbers. Nothing here is claimed because a model sounded sure of it — a
+kernel that is wrong is a wrong answer or a slower one, and both show up in a run.
 
 ### If you recognise your code
 
