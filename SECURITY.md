@@ -16,8 +16,6 @@ Instead, use GitHub's private vulnerability reporting:
 1. Go to the affected repository's **Security** tab.
 2. Click **Report a vulnerability** to open a private advisory.
 
-<!-- TODO(ops): optionally add a dedicated security contact, e.g. security@<domain>. -->
-
 Please include:
 
 - the affected repository and version/commit,
