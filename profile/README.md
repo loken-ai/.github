@@ -97,7 +97,8 @@ Being split out of a single working tree. Names without a link have not landed y
 
 | Repo | What it is |
 |------|------------|
-| **loken** | The inference **server** — engine, tensor substrate, every modality |
+| [**loken**](https://github.com/loken-ai/loken) | The inference **server** — engine, tensor substrate, every modality |
+| [**atlas**](https://github.com/loken-ai/atlas) | Watches a loken cluster: the living map, a doctor for what it swallows in silence, an OpenMetrics exporter |
 | **verve** | A local-first terminal coding agent |
 | **gui** | Desktop client for any Ollama/OpenAI-compatible server *(name not settled)* |
 | [**assay**](https://github.com/loken-ai/assay) | Benchmarks one local inference server against another, and ships the protocol that makes the comparison fair |
