@@ -100,7 +100,7 @@ Being split out of a single working tree. Names without a link have not landed y
 | [**loken**](https://github.com/loken-ai/loken) | The inference **server** — engine, tensor substrate, every modality |
 | [**atlas**](https://github.com/loken-ai/atlas) | Watches a loken cluster: the living map, a doctor for what it swallows in silence, an OpenMetrics exporter |
 | **verve** | A local-first terminal coding agent |
-| **gui** | Desktop client for any Ollama/OpenAI-compatible server *(name not settled)* |
+| [**atelier**](https://github.com/loken-ai/atelier) | The desktop client: a chat window, and a studio for image, audio, speech and video generation |
 | [**assay**](https://github.com/loken-ai/assay) | Benchmarks one local inference server against another, and ships the protocol that makes the comparison fair |
 | [**cudarc**](https://github.com/loken-ai/cudarc) | The local delta over [cudarc](https://github.com/chelsea0x3b/cudarc) — kept only until the patches are upstream |
 
