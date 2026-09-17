@@ -1,12 +1,15 @@
 <!--
-  ORG PROFILE — rendered at https://github.com/loken-ai
-  Branding: the token chain (white circles, emerald top circle) on the indigo tile. Full brand
-  kit + source SVGs live in this repo under brand/. The top circle is a logo device; in text
-  write "LOKEN".
+  ORG PROFILE - rendered at https://github.com/loken-ai
+  Branding: a looped l written with a broad nib on the indigo tile, its exit stroke emitted as
+  tokens, the second one lit. Full brand kit and source SVGs live in this repo under brand/.
+  In text, write "LOKEN".
 -->
 
 <p align="center">
-  <img src="lockup.png" alt="LOKEN — Local · Multimodal · Green" width="480">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="lockup-dark.png">
+    <img src="lockup.png" alt="LOKEN" width="480">
+  </picture>
 </p>
 
 <p align="center">

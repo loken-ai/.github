@@ -1,98 +1,77 @@
 #!/usr/bin/env python3
-"""Check the assets that are about to be committed. Prints FAIL loudly; exits non-zero."""
-import re, sys, os
-from PIL import Image
+"""Check the emitted brand assets. Prints FAIL loudly; exits non-zero on any failure."""
+import os, re, subprocess, sys
+import xml.etree.ElementTree as ET
 import numpy as np
+from PIL import Image
 
-B=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-fails=[]
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import gen
 
-def circles_of(d):
-    """(cx, cy, r) of every token in a path — an arc pair per circle, centre bisecting each chord"""
-    toks=re.findall(r'[MLAZmlaz]|-?\d*\.?\d+',d); i=0; cur=None; out=[]
-    while i<len(toks):
-        t=toks[i]
-        if t in "MLml": cur=(float(toks[i+1]),float(toks[i+2])); i+=3
-        elif t in "Aa":
-            r=float(toks[i+1]); x,y=float(toks[i+6]),float(toks[i+7])
-            out.append(((cur[0]+x)/2,(cur[1]+y)/2,r)); cur=(x,y); i+=8
-        else: i+=1
-    return out[::2]          # two half-arcs per circle; keep one entry each
+B = gen.BRAND; P = os.path.join(B, "png"); NS = "{http://www.w3.org/2000/svg}"
+fails = []
 
-def token_gaps(d):
-    """clear ground between each pair of tokens — negative means they overlap, 0 means tangent"""
-    cs=circles_of(d)
-    return [((x2-x1)**2+(y2-y1)**2)**0.5-(r1+r2)
-            for (x1,y1,r1),(x2,y2,r2) in zip(cs,cs[1:])] or [999]
-
-def path_bbox(d):
-    """Extent of an SVG path, honouring arc geometry.
-
-    Reading every float in the `d` string is what made the first version of this check accuse
-    correct files: `A12.00,12.00 0 1,0 ...` contributes two radii that are not coordinates.
-    Commands are consumed with their real arity, and an arc's bulge is recovered from its
-    chord — an arc's endpoints alone understate a circle by its whole vertical extent.
-    """
-    toks=re.findall(r'[MLAZmlaz]|-?\d*\.?\d+',d)
-    i=0; cur=None; xs=[]; ys=[]
-    def add(x,y): xs.append(x); ys.append(y)
-    while i<len(toks):
-        t=toks[i]
-        if t in "MLml":
-            x,y=float(toks[i+1]),float(toks[i+2]); add(x,y); cur=(x,y); i+=3
-        elif t in "Aa":
-            r=float(toks[i+1]); x,y=float(toks[i+6]),float(toks[i+7])
-            cx,cy=((cur[0]+x)/2,(cur[1]+y)/2)      # semicircle: centre bisects the chord
-            add(cx-r,cy-r); add(cx+r,cy+r); add(x,y)
-            cur=(x,y); i+=8
-        else: i+=1
-    return min(min(xs),min(ys)), max(max(xs),max(ys))
-def check(cond,label,detail=""):
-    print(f"  {'ok  ' if cond else 'FAIL'}  {label}{'  '+detail if detail else ''}")
+def check(cond, label, detail=""):
+    print(f"  {'ok  ' if cond else 'FAIL'}  {label}{'  ' + detail if detail else ''}")
     if not cond: fails.append(label)
 
-# ---- the SVG mark: structure, fill rule, and extent -------------------------------------
-for name,exp_extent in (("icon.svg",80.0),("favicon.svg",86.0),("icon-mono.svg",80.0),):
-    svg=open(f"{B}/{name}").read()
-    print(f"{name}")
-    paths=re.findall(r'<path d="([^"]+)"([^/]*)/>',svg)
-    mark=paths[0]
-    subs=[s for s in mark[0].split("M") if s.strip()]
-    bars=sum(1 for s in subs if "A" not in s); circles=sum(1 for s in subs if "A" in s)
-    check(circles==5,"5 tokens (incl. the accent)",f"got {circles}")
-    check(bars==0,"no connectors — the tokens stand apart",f"got {bars}")
-    gaps=token_gaps(mark[0])
-    check(min(gaps)>0.5,"tokens do not touch",f"min gap {min(gaps):.1f}")
-    lo,hi=path_bbox(mark[0])
-    tile_lo,tile_hi=(0,128) if "favicon" in name else (4,124)
-    if "mono" in name: tile_lo,tile_hi=(64-64,64+64)
-    ml,mr=lo-tile_lo,tile_hi-hi
-    check(abs(ml-mr)<0.05,"equal margins",f"left/top={ml:.1f} right/bottom={mr:.1f}")
-    check(abs((hi-lo)-exp_extent)<0.05,f"extent {exp_extent:g}",f"got {hi-lo:.1f}")
+def ink_box(root):
+    """Ink box of an SVG: every path point and every solid circle; halos (url fills) excluded."""
+    xs, ys = [], []
+    for el in root.iter():
+        fill = el.get("fill", "")
+        if el.tag == NS + "path":
+            v = [float(n) for n in re.findall(r"-?\d+\.?\d*", el.get("d"))]
+            xs += v[0::2]; ys += v[1::2]
+        elif el.tag == NS + "circle" and not fill.startswith("url("):
+            cx, cy, r = (float(el.get(k)) for k in ("cx", "cy", "r"))
+            xs += [cx - r, cx + r]; ys += [cy - r, cy + r]
+    return min(xs), min(ys), max(xs), max(ys)
 
-# ---- the one-ink cut must still have five tokens ----------------------------------------
-print("icon-mono-512.png")
-a=np.array(Image.open(f"{B}/png/icon-mono-512.png").convert("RGBA"))
-ink=a[:,:,3]>128
-# count connected blobs the cheap way: the mark is one piece now, so instead assert the ink
-# reaches the accent token's corner, which is what vanished when counter_col=None
-top=np.where(ink.any(axis=1))[0].min(); left=np.where(ink.any(axis=0))[0].min()
-check(ink[top:top+40, left:left+40].any(),"accent token present in the one-ink cut")
+# ---- no asset carries text or asks for a font
+for name in sorted(f for f in os.listdir(B) if f.endswith(".svg")):
+    text = open(os.path.join(B, name)).read()
+    print(name)
+    check("<text" not in text and "font-family" not in text, "no text, no font")
 
-# ---- SVG vs PNG, if anything here can rasterise ------------------------------------------
-print("svg -> png agreement")
-try:
-    import cairosvg, io
-    png=cairosvg.svg2png(url=f"{B}/icon.svg",output_width=512,output_height=512)
-    v=np.array(Image.open(io.BytesIO(png)).convert("RGBA"))[:,:,:3]
-    p=np.array(Image.open(f"{B}/png/icon-512.png").convert("RGBA"))[:,:,:3]
-    # compare the white ink only
-    vm=(v>200).all(axis=2); pm=(p>200).all(axis=2)
-    iou=(vm&pm).sum()/max(1,(vm|pm).sum())
-    check(iou>=0.98,"IoU vector vs raster",f"{iou:.4f}")
-except ImportError:
-    print("  n/a   no SVG rasteriser available — structure checked above instead")
+# ---- the mark: centred on its tile at the declared extent, one lit token
+for name, lo, hi, extent in (("icon.svg", 4, 124, gen.EXTENT_TILE), ("favicon.svg", 0, 128, gen.EXTENT_BLEED),
+                             ("icon-mono.svg", 0, 128, gen.EXTENT_TILE)):
+    root = ET.parse(os.path.join(B, name)).getroot()
+    print(name)
+    x0, y0, x1, y1 = ink_box(root)
+    ml, mr, mt, mb = x0 - lo, hi - x1, y0 - lo, hi - y1
+    check(abs(ml - mr) < 0.05 and abs(mt - mb) < 0.05, "equal margins",
+          f"left={ml:.2f} right={mr:.2f} top={mt:.2f} bottom={mb:.2f}")
+    check(abs(max(x1 - x0, y1 - y0) - extent) < 0.05, f"extent {extent:g}", f"got {max(x1 - x0, y1 - y0):.2f}")
+    solid = [c.get("fill") for c in root.iter(NS + "circle") if not c.get("fill").startswith("url(")]
+    check(len(solid) == len(gen.TOKENS), f"{len(gen.TOKENS)} tokens", f"got {len(solid)}")
+    lit = [f for f in solid if f in (gen.EMERALD_ON_TILE, gen.EMERALD_ON_PAPER)]
+    if "mono" in name:
+        inks = {el.get("fill") for el in root.iter() if el.get("fill")}
+        check(len(inks) == 1, "one ink", f"got {sorted(inks)}")
+    else:
+        check(len(lit) == 1 and solid.index(lit[0]) == gen.LIT, "exactly one lit token, the second emitted")
+
+# ---- rasters: present at their sizes, and the same drawing as the vector
+print("png/")
+expect = {f"icon-{s}.png": (s, s) for s in (512, 256, 180, 128)}
+expect.update({f"favicon-{s}.png": (s, s) for s in (48, 32, 16)})
+expect.update({"icon-mono-512.png": (512, 512), "avatar-512.png": (512, 512)})
+for f, size in expect.items():
+    path = os.path.join(P, f)
+    check(os.path.exists(path) and Image.open(path).size == size, f, f"expected {size}")
+for f in ("wordmark.png", "lockup.png", "lockup-dark.png", "favicon.ico"):
+    check(os.path.exists(os.path.join(P, f)), f)
+fav = np.array(Image.open(os.path.join(P, "favicon-16.png")).convert("RGB")).astype(int)
+check((fav.max(axis=2) > 170).sum() >= 12, "the mark survives at 16 px")
+
+probe = os.path.join(HERE, "variants", "verify-icon.png"); os.makedirs(os.path.dirname(probe), exist_ok=True)
+subprocess.run([gen.RESVG, "-w", "512", os.path.join(B, "icon.svg"), probe], check=True)
+a = np.array(Image.open(probe).convert("RGBA")).astype(int); b = np.array(Image.open(os.path.join(P, "icon-512.png")).convert("RGBA")).astype(int)
+check(np.abs(a - b).max() <= 1, "icon-512.png is icon.svg rasterised")
 
 print()
-print("FAILURES: "+", ".join(fails) if fails else "all checks passed")
+print("FAILURES: " + ", ".join(fails) if fails else "all checks passed")
 sys.exit(1 if fails else 0)

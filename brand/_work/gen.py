@@ -1,303 +1,244 @@
 #!/usr/bin/env python3
-"""LOKEN brand generator — single source of truth for the logo assets.
+"""LOKEN brand generator: the single source of every logo asset.
 
-The mark is a token chain: five discrete circles tracing an L — three down the stem, three
-across the base, sharing the corner — white on the indigo tile, the first one emerald. The
-emerald circle is the brand device, and it carries into the wordmark as the counter of the O:
-the same shape, the same ink, so the mark and the word read as one system.
+The mark is a looped l written with a broad nib on the indigo tile. Its exit stroke is
+emitted as four shrinking tokens, the second one lit in emerald. The wordmark is the word
+loken written with the same nib; its last stroke rises from ink to emerald and sets down a
+light. No asset carries text or depends on an installed font.
 
-The mark is generated from `chain()`, which is the only place its geometry is written; the
-wordmark's five letters are traced from Quicksand-Bold to outlines. Nothing depends on a font
-being installed where it is displayed. Run from this folder:
+Every shape is vector geometry written once below. SVGs are emitted from it and PNGs are
+rasterised from those SVGs with resvg, so vector and raster are the same drawing. Run from
+this folder:
 
-    python3 gen.py preview   # write review variants + preview.html into _work/
-    python3 gen.py final     # write final assets into ../ (brand root), ../png/ and ../../profile/
-
-WIP files live under _work/ (scratch — can be gitignored). Final assets go to brand/.
+    python3 gen.py      # write ../*.svg, ../png/*, ../../profile/*
 """
-import sys, os
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont
-import math
+import math, os, re, shutil, subprocess, sys
+from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BRAND = os.path.dirname(HERE)
-FONT = "/usr/share/fonts/truetype/quicksand/Quicksand-Bold.ttf"
-FONT_TAG = "/usr/share/fonts/truetype/quicksand/Quicksand-Medium.ttf"
-# the wordmark, and which letter carries the emerald counter. It has to be a letter that HAS
-# one: L has no enclosed counter, so pointing at it dropped the accent from the wordmark
-# entirely. The O is the only counter in LOKEN — and it is a circle, the mark's own shape.
-WORD = "LOKEN"; ACC = 1
-N = 1024; k = N / 128.0
-def S(v): return v * k
-IND_T=(55,48,163); IND_B=(49,46,129); EMLT=(52,211,153); EMDK=(5,150,105); TAG=(4,120,87)
-HEX_INK="#312E81"; HEX_EM_ON_TILE="#34D399"; HEX_EM_ON_PAPER="#059669"; HEX_TAG="#047857"
-TAGLINE = "LOCAL · MULTIMODAL · GREEN"
+PROFILE = os.path.join(os.path.dirname(BRAND), "profile")
 
-_sys = sys; _sys.setrecursionlimit(100000)
+INDIGO_TOP = "#3730A3"; INDIGO = "#312E81"; WHITE = "#FFFFFF"
+EMERALD_ON_TILE = "#34D399"; EMERALD_ON_PAPER = "#059669"
+INK_ON_NIGHT = "#ECEBFA"
 
-# ---------------------------------------------------------------- token chain mark (procedural)
-def chain(extent=80.0):
-    """The mark: five tokens tracing an L, as [(cx, cy, r, is_accent)] on the 128-unit grid.
+# ---------------------------------------------------------------- broad-nib geometry
+NIB_ANGLE = -38.0      # degrees; the nib edge, fixed for every stroke so all ink shares one hand
+HAIRLINE = 0.22        # thinnest stroke as a fraction of the nib width
 
-    THE geometry — the SVG paths and the PNG both read it here, so the two cannot drift.
-
-    Three tokens down the stem, three across the base, sharing the corner one. Radius and
-    spacing are fractions of `extent` rather than typed numbers, which is what makes the two
-    properties below hold at every size instead of only at the one that was eyeballed:
-
-      spacing 0.35e, radius 0.15e  ->  0.05e of ground between neighbours. Tangent discs read
-      as one poured shape; the gap is what makes them five countable tokens.
-      total 2*spacing + 2*radius = e, first centre at 64 - spacing  ->  the ink's bounding box
-      is [64-e/2, 64+e/2] on both axes, i.e. centred on the tile by construction.
-    """
-    r = 0.15 * extent; s = 0.35 * extent; x0 = y0 = 64.0 - s
-    return [(x0,      y0,       r, True),    # stem top — the accent token
-            (x0,      y0 + s,   r, False),   # stem middle
-            (x0,      y0 + 2*s, r, False),   # the corner
-            (x0 + s,  y0 + 2*s, r, False),   # base middle
-            (x0 + 2*s, y0 + 2*s, r, False)]  # base end
-
-def _circle_d(cx, cy, r):
-    """One token as an SVG subpath: two half-arcs, an exact circle — not a polygon."""
-    return (f"M{cx-r:.2f},{cy:.2f} A{r:.2f},{r:.2f} 0 1,0 {cx+r:.2f},{cy:.2f}"
-            f" A{r:.2f},{r:.2f} 0 1,0 {cx-r:.2f},{cy:.2f} Z")
-
-def _holes(mask):
-    """Enclosed regions in a rasterised mask.
-
-    A non-filled pixel is inside a counter when the shape closes over it on all four sides.
-    Exact for letterform counters; it would under-report a crescent-shaped hole.
-    """
-    L=np.maximum.accumulate(mask,axis=1); R=np.maximum.accumulate(mask[:,::-1],axis=1)[:,::-1]
-    U=np.maximum.accumulate(mask,axis=0); D=np.maximum.accumulate(mask[::-1],axis=0)[::-1]
-    return (~mask)&L&R&U&D
-
-# ---------------------------------------------------------------- the tile mark (PNG)
-def icon(glyph_col=(255,255,255), counter_col=EMLT,
-         tile_grad=True, fbleed=False, rx=28, tile=True, extent=80.0):
-    c=Image.new('RGBA',(N,N),(0,0,0,0))
-    if tile:
-        tm=Image.new('L',(N,N),0)
-        box=[0,0,N-1,N-1] if fbleed else [S(4),S(4),S(124),S(124)]
-        ImageDraw.Draw(tm).rounded_rectangle(box,radius=S(rx),fill=255)
-        if tile_grad:
-            yy,xx=np.mgrid[0:N,0:N]; t=yy/(N-1); arr=np.zeros((N,N,3),np.uint8)
-            for i in range(3): arr[:,:,i]=(IND_T[i]+(IND_B[i]-IND_T[i])*t).astype(np.uint8)
-            c.paste(Image.fromarray(arr,'RGB'),(0,0),tm)
-        else:
-            c.paste(Image.new('RGB',(N,N),IND_B),(0,0),tm)
-    d=ImageDraw.Draw(c)
-    for cx,cy,r,accent in chain(extent):
-        # a one-ink cut passes counter_col=None; the accent token then takes the body ink
-        # rather than disappearing, which is what dropped the fifth token from the mono mark
-        col = (counter_col or glyph_col) if accent else glyph_col
-        d.ellipse([S(cx-r),S(cy-r),S(cx+r),S(cy+r)], fill=col)
-    return c
-
-# ---------------------------------------------------------------- contour tracing
-def _mask_hi(target_h_units, res_px=1000):
-    """render the glyph big, return (mask bool, bbox) at high res for tracing."""
-    _,bb=_render_glyph(700); gh=bb[3]-bb[1]
-    im,bb=_render_glyph(int(round(700*(res_px)/gh)))
-    a=np.array(im)>128
-    ys,xs=np.where(a); return a,(xs.min(),ys.min(),xs.max(),ys.max())
-
-def _trace(mask):
-    P=np.pad(mask,1); ys,xs=np.where(P); y0=ys.min(); x0=int(xs[ys==y0].min())
-    start=(y0,x0); nb=[(0,-1),(-1,-1),(-1,0),(-1,1),(0,1),(1,1),(1,0),(1,-1)]
-    cur=start; back=(y0,x0-1); cont=[start]; steps=0
-    while steps<5_000_000:
-        steps+=1; d=(back[0]-cur[0],back[1]-cur[1]); bi=nb.index(d); nxt=None
-        for kk in range(1,9):
-            idx=(bi+kk)%8; c=(cur[0]+nb[idx][0],cur[1]+nb[idx][1])
-            if P[c]: nxt=c; back=(cur[0]+nb[(idx-1)%8][0],cur[1]+nb[(idx-1)%8][1]); break
-        if nxt is None: break
-        cur=nxt; cont.append(cur)
-        if cur==start and steps>3: break
-    return [(x-1,y-1) for (y,x) in cont]
-
-def _dp(pts,eps):
-    if len(pts)<3: return pts
-    a=np.array(pts[0],float); b=np.array(pts[-1],float); ab=b-a; L=np.hypot(*ab)
-    if L==0: d=np.hypot(*(np.array(pts,float)-a).T)
-    else: d=np.abs(np.cross(ab,np.array(pts,float)-a))/L
-    idx=int(np.argmax(d))
-    if d[idx]>eps: return _dp(pts[:idx+1],eps)[:-1]+_dp(pts[idx:],eps)
-    return [pts[0],pts[-1]]
-
-def _sub(P): return "M"+" L".join(f"{x:.2f},{y:.2f}" for x,y in P)+" Z"
-
-def glyph_path(extent=80.0):
-    """The mark at overall size `extent`: (body_d, accent_d, token count, bbox).
-
-    Body and accent are separate so the accent can be overpainted in a second ink; the tokens
-    are disjoint, so filling body+accent under evenodd gives the whole mark in one colour.
-    """
-    cs=chain(extent)
-    body=" ".join(_circle_d(cx,cy,r) for cx,cy,r,a in cs if not a)
-    accent=" ".join(_circle_d(cx,cy,r) for cx,cy,r,a in cs if a)
-    xs=[cx+sg*r for cx,_,r,_ in cs for sg in (-1,1)]
-    ys=[cy+sg*r for _,cy,r,_ in cs for sg in (-1,1)]
-    return body,accent,len(cs),(min(xs),min(ys),max(xs),max(ys))
-
-# ---------------------------------------------------------------- the wordmark, as outlines
-def _word_masks(word, px=500):
-    """each letter rasterised in the SAME frame, laid out on the font's own advances"""
-    f=ImageFont.truetype(FONT,px)
-    C=(int(f.getlength(word)+px*2), int(px*2.5)); X0=Y0=px*0.5
-    out=[]
-    for i,ch in enumerate(word):
-        im=Image.new("L",C,0)
-        ImageDraw.Draw(im).text((X0+f.getlength(word[:i]),Y0),ch,font=f,fill=255)
-        out.append((ch,np.array(im)>128))
+def _cubics(d):
+    """Parse an absolute M/C path into [(p0, p1, p2, p3)]."""
+    nums = [float(v) for v in re.findall(r"-?\d+\.?\d*", d)]
+    cur = (nums[0], nums[1]); out = []
+    for i in range(2, len(nums), 6):
+        p1, p2, p3 = (nums[i], nums[i + 1]), (nums[i + 2], nums[i + 3]), (nums[i + 4], nums[i + 5])
+        out.append((cur, p1, p2, p3)); cur = p3
     return out
 
-def word_paths(word, cap_h, ox, oy, eps=0.6):
-    """Outline every letter at cap height cap_h, positioned at (ox, oy).
+def _samples(d, step=1.2):
+    """Points along the path, at most `step` units apart (chord estimate per cubic)."""
+    pts = []
+    for p0, p1, p2, p3 in _cubics(d):
+        est = math.dist(p0, p1) + math.dist(p1, p2) + math.dist(p2, p3)
+        n = max(4, int(est / step))
+        for k in range(0 if not pts else 1, n + 1):
+            t = k / n; u = 1 - t
+            pts.append((u**3 * p0[0] + 3*u*u*t * p1[0] + 3*u*t*t * p2[0] + t**3 * p3[0],
+                        u**3 * p0[1] + 3*u*u*t * p1[1] + 3*u*t*t * p2[1] + t**3 * p3[1]))
+    return pts
 
-    Returns (letters, width) where letters is [(ch, outer_d, hole_d|None)]. Tracing to
-    outline paths allows colourizing the accent letter and eliminates font dependencies.
+def nib(d, width, angle=NIB_ANGLE):
+    """Outline of a broad nib of `width` dragged along path `d`, as quads [(4 points)].
+
+    Each quad spans two neighbouring samples; all are wound the same way, so a nonzero fill of
+    their concatenation paints exactly the union, the swept ink, with no boolean operation.
     """
-    masks=_word_masks(word)
-    union=np.zeros_like(masks[0][1])
-    for _,m in masks: union|=m
-    ys,xs=np.where(union); x0,y0,x1,y1=xs.min(),ys.min(),xs.max(),ys.max()
-    sc=cap_h/(y1-y0)
-    place=lambda pts:[(ox+(x-x0)*sc, oy+(y-y0)*sc) for (x,y) in pts]
-    letters=[]
-    for ch,m in masks:
-        outer=_sub(place(_dp(_trace(m),eps)))
-        h=_holes(m)
-        letters.append((ch,outer,_sub(place(_dp(_trace(h),eps))) if h.any() else None))
-    return letters,(x1-x0)*sc
+    a = math.radians(angle); h = width / 2
+    vx, vy = h * math.cos(a), h * math.sin(a)
+    pts = _samples(d); quads = []
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        q = [(x0 - vx, y0 - vy), (x1 - vx, y1 - vy), (x1 + vx, y1 + vy), (x0 + vx, y0 + vy)]
+        area = sum(q[i][0] * q[(i + 1) % 4][1] - q[(i + 1) % 4][0] * q[i][1] for i in range(4))
+        quads.append(q if area > 0 else q[::-1])
+    return quads
 
-def _word_svg(word, cap_h, ox, oy, ink=HEX_INK, acc=HEX_EM_ON_PAPER):
-    letters,w=word_paths(word,cap_h,ox,oy)
-    body="".join(f'\n  <path d="{o}{" "+h if h else ""}" fill="{ink}" fill-rule="evenodd"/>'
-                 for _,o,h in letters)
-    counter="".join(f'\n  <path d="{h}" fill="{acc}"/>'
-                    for i,(_,_,h) in enumerate(letters) if h and i==ACC)
-    return body+counter, w
+class Drawing:
+    """Ink primitives in their own units, with the ink box they cover."""
+    def __init__(self):
+        self.items = []; self.box = [math.inf, math.inf, -math.inf, -math.inf]
+    def _grow(self, x, y):
+        b = self.box; b[0] = min(b[0], x); b[1] = min(b[1], y); b[2] = max(b[2], x); b[3] = max(b[3], y)
+    def stroke(self, d, width, paint):
+        """A nib stroke; a narrow crossing nib gives the hairlines a floor of HAIRLINE x width."""
+        q = nib(d, width) + nib(d, width * HAIRLINE, NIB_ANGLE + 90); self.items.append(("quads", q, paint))
+        for quad in q:
+            for x, y in quad: self._grow(x, y)
+    def disc(self, x, y, r, paint):
+        self.items.append(("disc", x, y, r, paint)); self._grow(x - r, y - r); self._grow(x + r, y + r)
+    def glow(self, x, y, r, gid):
+        """A halo; it does not count toward the ink box, so it never shifts the centring."""
+        self.items.append(("glow", x, y, r, gid))
+    def svg(self, dx, dy, s):
+        """The primitives mapped by (x, y) -> (dx + s*x, dy + s*y)."""
+        f = lambda v: f"{v:.2f}".rstrip("0").rstrip(".")
+        out = []
+        for it in self.items:
+            if it[0] == "quads":
+                d = "".join("M" + " ".join(f"{f(dx + s*x)},{f(dy + s*y)}" for x, y in q) + "Z" for q in it[1])
+                out.append(f'<path d="{d}" fill="{it[2]}" fill-rule="nonzero"/>')
+            elif it[0] == "disc":
+                out.append(f'<circle cx="{f(dx + s*it[1])}" cy="{f(dy + s*it[2])}" r="{f(s*it[3])}" fill="{it[4]}"/>')
+            else:
+                out.append(f'<circle cx="{f(dx + s*it[1])}" cy="{f(dy + s*it[2])}" r="{f(s*it[3])}" fill="url(#{it[4]})"/>')
+        return "".join(out)
+    def fit(self, cx, cy, extent):
+        """Transform that centres the ink box on (cx, cy) with its larger side equal to extent."""
+        w = self.box[2] - self.box[0]; h = self.box[3] - self.box[1]; s = extent / max(w, h)
+        return cx - s * (self.box[0] + w / 2), cy - s * (self.box[1] + h / 2), s
+
+# ---------------------------------------------------------------- the mark
+LOOP_L = ("M18,100 C32,96 48,72 54,44 C58,22 52,8 46,12 C38,18 38,52 42,82 C44,98 52,104 62,100 "
+          "C70,97 76,90 80,82")
+TOKENS = [(87, 71, 5.6), (92, 59, 4.7), (96, 48, 3.9), (99, 38, 3.2)]
+LIT = 1                  # the token that glows: the second one emitted
+
+def mark(ink=WHITE, lit=EMERALD_ON_TILE, halo=True):
+    """The looped l and its token stream. `lit=None` gives the one-ink cut."""
+    m = Drawing(); m.stroke(LOOP_L, 10.0, ink)
+    for i, (x, y, r) in enumerate(TOKENS):
+        if i == LIT and lit:
+            if halo: m.glow(x, y, r * 2.4, "halo")
+            m.disc(x, y, r + 0.6, lit)
+        else:
+            m.disc(x, y, r, ink)
+    return m
+
+# ---------------------------------------------------------------- the wordmark
+WORD = ("M0,98 C14,94 30,70 36,42 C40,20 34,6 28,10 C20,16 20,50 24,80 C26,96 34,102 44,98 "
+        "C50,95 54,90 58,84 C60,70 70,60 80,60 C92,60 96,76 92,88 C88,100 72,102 68,92 "
+        "C64,82 70,64 84,62 C92,62 98,66 104,68 C112,50 116,24 116,12 C116,2 106,4 106,18 "
+        "C106,40 106,70 106,100 C106,86 110,66 124,64 C136,62 136,78 116,82 C128,84 132,98 142,99 "
+        "C150,100 160,90 166,84 C172,80 184,74 180,66 C176,58 158,64 158,84 C158,100 176,102 186,94 "
+        "C190,88 194,74 196,62 C196,76 196,90 196,100 C198,80 204,62 218,62 C232,62 230,80 230,96 "
+        "C231,102 238,102 244,96")
+WORD_TAIL = "M244,96 C256,84 266,62 274,42"
+WORD_LIGHT = (278, 34, 5.0)
+
+def word(ink, light):
+    """The written word, its rising tail and the light it sets down; the box covers the letters."""
+    w = Drawing(); w.stroke(WORD, 7.0, ink)
+    letters = list(w.box)
+    w.stroke(WORD_TAIL, 5.0, "url(#tail)")
+    x, y, r = WORD_LIGHT; w.glow(x, y, r * 3.2, "light"); w.disc(x, y, r, light)
+    return w, letters
 
 # ---------------------------------------------------------------- SVG assets
-TILE='<linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3730A3"/><stop offset="1" stop-color="#312E81"/></linearGradient>'
-def _svg_icon(d,hole,fbleed=False,rx=28):
-    box='x="0" y="0" width="128" height="128"' if fbleed else 'x="4" y="4" width="120" height="120"'
-    fill='#312E81' if fbleed else 'url(#t)'
-    counter=f'\n  <path d="{hole}" fill="{HEX_EM_ON_TILE}"/>' if hole else ''
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">\n'
-            f'  <defs>{TILE}</defs>\n  <rect {box} rx="{rx}" fill="{fill}"/>\n'
-            f'  <path d="{d}{" "+hole if hole else ""}" fill="#FFFFFF" fill-rule="nonzero"/>'
-            f'{counter}\n</svg>\n')
+def _defs(emerald, ink=None, tail_box=None, tile=True):
+    d = []
+    if tile:
+        d.append(f'<linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{INDIGO_TOP}"/>'
+                 f'<stop offset="1" stop-color="{INDIGO}"/></linearGradient>')
+    d.append(f'<radialGradient id="halo"><stop offset="0" stop-color="{emerald}" stop-opacity=".6"/>'
+             f'<stop offset="1" stop-color="{emerald}" stop-opacity="0"/></radialGradient>')
+    if tail_box:
+        x1, y1, x2, y2 = tail_box
+        d.append(f'<radialGradient id="light"><stop offset="0" stop-color="{emerald}" stop-opacity=".5"/>'
+                 f'<stop offset="1" stop-color="{emerald}" stop-opacity="0"/></radialGradient>'
+                 f'<linearGradient id="tail" gradientUnits="userSpaceOnUse" x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}">'
+                 f'<stop offset="0" stop-color="{ink}"/><stop offset=".55" stop-color="{emerald}" stop-opacity=".8"/>'
+                 f'<stop offset="1" stop-color="{emerald}" stop-opacity="0"/></linearGradient>')
+    return "<defs>" + "".join(d) + "</defs>"
 
-def _svg_mono(d,hole):
-    """Monochrome mark: every token and bar in a single ink."""
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">\n'
-            f'  <path d="{d}{" "+hole if hole else ""}" fill="#059669" fill-rule="nonzero"/>\n</svg>\n')
+def _svg(w, h, body):
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:g} {h:g}" width="{w:g}" height="{h:g}">\n'
+            f'{body}\n</svg>\n')
 
-def _svg_tagline(x,y,size,spacing,anchor="start"):
-    return (f'\n  <text x="{x}" y="{y}" text-anchor="{anchor}" font-family="system-ui,sans-serif"'
-            f' font-weight="500" font-size="{size}" letter-spacing="{spacing}" fill="{HEX_TAG}">'
-            f'{TAGLINE}</text>')
+# the tile is 4..124 on the 128 grid; full-bleed cuts use 0..128. The extent is the larger side
+# of the ink box, centred on the tile centre, so the margins are equal by construction.
+EXTENT_TILE = 84.0; EXTENT_BLEED = 92.0
 
-def _svg_lockup(d,hole):
-    body,w=_word_svg(WORD,72,192,46)
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {int(192+w+24)} 200" '
-            f'width="{int(192+w+24)}" height="200">\n'
-            f'  <defs>{TILE}</defs>\n'
-            f'  <g transform="translate(24,36)"><rect x="0" y="0" width="128" height="128" rx="28" fill="url(#t)"/>'
-            f'<path d="{d}{" "+hole if hole else ""}" fill="#FFFFFF" fill-rule="nonzero"/>'
-            + (f'<path d="{hole}" fill="{HEX_EM_ON_TILE}"/>' if hole else '')
-            + f'</g>{body}'
-            + _svg_tagline(194,150,15,4.4) + '\n</svg>\n')
+def icon_svg():
+    m = mark(); dx, dy, s = m.fit(64, 64, EXTENT_TILE)
+    return _svg(128, 128, _defs(EMERALD_ON_TILE) +
+                '<rect x="4" y="4" width="120" height="120" rx="28" fill="url(#t)"/>' + m.svg(dx, dy, s))
 
-def _svg_wordmark():
-    body,w=_word_svg(WORD,104,40,38)
-    W=int(w+80)
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} 200" width="{W}" height="200">'
-            f'{body}' + _svg_tagline(W/2,178,17,5.2,anchor="middle") + '\n</svg>\n')
+def favicon_svg(rx=26, gradient=False):
+    m = mark(); dx, dy, s = m.fit(64, 64, EXTENT_BLEED)
+    fill = "url(#t)" if gradient else INDIGO
+    return _svg(128, 128, _defs(EMERALD_ON_TILE) +
+                f'<rect x="0" y="0" width="128" height="128" rx="{rx}" fill="{fill}"/>' + m.svg(dx, dy, s))
 
-# ---------------------------------------------------------------- PNG wordmark
-def _wordmark(W,H,with_icon=False,ic=None):
-    """Render wordmark in Quicksand-Bold with accent letter's counter highlighted."""
-    im=Image.new('RGBA',(W,H),(0,0,0,0)); dd=ImageDraw.Draw(im)
-    f=ImageFont.truetype(FONT,200); fs=ImageFont.truetype(FONT_TAG,30)
-    xoff=0
-    if with_icon and ic is not None:
-        im.alpha_composite(ic.resize((240,240),Image.LANCZOS),(30,60)); xoff=300
-    ww=dd.textlength(WORD,font=f)
-    x=(xoff+((W-xoff)-ww)//2) if not with_icon else xoff+20
-    dd.text((x,70),WORD,font=f,fill=IND_B)
-    # the accent letter, in the same frame so it lands exactly on its wordmark position
-    lm=Image.new('L',(W,H),0)
-    ImageDraw.Draw(lm).text((x+dd.textlength(WORD[:ACC],font=f),70),WORD[ACC],font=f,fill=255)
-    h=_holes(np.array(lm)>128)
-    if h.any(): im.paste(Image.new('RGBA',(W,H),EMDK+(255,)),(0,0),
-                         Image.fromarray(h.astype(np.uint8)*255))
-    tag="  ".join(TAGLINE.split(" ")); tw=dd.textlength(tag,font=fs)
-    dd.text(((xoff+((W-xoff)-tw)//2) if not with_icon else xoff+22,300),tag,font=fs,fill=TAG)
-    return im
+def mono_svg():
+    m = mark(ink=EMERALD_ON_PAPER, lit=None); dx, dy, s = m.fit(64, 64, EXTENT_TILE)
+    return _svg(128, 128, m.svg(dx, dy, s))
 
-# ---------------------------------------------------------------- outputs
-def final():
-    png=os.path.join(BRAND,"png"); os.makedirs(png,exist_ok=True)
-    d,hole,n,bb=glyph_path(80.0); df,holef,_,_=glyph_path(86.0)
-    cs=chain(80.0); gap=(cs[1][1]-cs[0][1])-2*cs[0][2]
-    # the tile runs 4..124, so equal margins on the four sides IS the centring test — report
-    # them rather than a centre coordinate, because unequal margins are the visible defect
-    ml,mr,mt,mb = bb[0]-4, 124-bb[2], bb[1]-4, 124-bb[3]
-    ok = "OK" if max(abs(ml-mr),abs(mt-mb)) < 0.01 else "*** UNEQUAL ***"
-    print(f"token chain: {n} tokens, accent={'yes' if hole else 'NO'}, gap between tokens={gap:.1f}\n"
-          f"  margins  left={ml:.1f} right={mr:.1f} | top={mt:.1f} bottom={mb:.1f}  -> {ok}")
-    open(os.path.join(BRAND,"icon.svg"),"w").write(_svg_icon(d,hole))
-    open(os.path.join(BRAND,"favicon.svg"),"w").write(_svg_icon(df,holef,fbleed=True,rx=26))
-    open(os.path.join(BRAND,"icon-mono.svg"),"w").write(_svg_mono(d,hole))
-    open(os.path.join(BRAND,"lockup.svg"),"w").write(_svg_lockup(d,hole))
-    open(os.path.join(BRAND,"wordmark.svg"),"w").write(_svg_wordmark())
-    # the full-bleed cuts carry the larger mark (86 vs 80), matching favicon.svg — passing the
-    # extent here is what keeps the PNG and the SVG the same drawing
-    ic=icon(); fv=icon(tile_grad=False,fbleed=True,rx=26,extent=86.0)
-    mo=icon(glyph_col=EMDK,counter_col=None,tile=False)
-    for sz in (512,256,180,128): ic.resize((sz,sz),Image.LANCZOS).save(f"{png}/icon-{sz}.png")
-    for sz in (48,32,16): fv.resize((sz,sz),Image.LANCZOS).save(f"{png}/favicon-{sz}.png")
-    mo.resize((512,512),Image.LANCZOS).save(f"{png}/icon-mono-512.png")
-    # the org/profile avatar: square to the edge, no rounding of our own. GitHub puts the
-    # avatar in its own container shape, so a rounded source would read as a double round and
-    # its transparent corners would take the colour of whatever page it sits on.
-    icon(tile_grad=True,fbleed=True,rx=0,extent=86.0).resize((512,512),Image.LANCZOS).save(f"{png}/avatar-512.png")
-    fv.resize((48,48),Image.LANCZOS).save(f"{png}/favicon.ico",sizes=[(16,16),(32,32),(48,48)])
-    _wordmark(1120,360).save(f"{png}/wordmark.png"); _wordmark(1360,360,True,ic).save(f"{png}/lockup.png")
-    # the org profile renders profile/README.md, so its images must resolve beside it —
-    # generated here rather than copied by hand, so there is one source, not two
-    prof=os.path.join(os.path.dirname(BRAND),"profile")
-    if os.path.isdir(prof):
-        ic.resize((512,512),Image.LANCZOS).save(f"{prof}/icon.png")
-        _wordmark(1360,360,True,ic).save(f"{prof}/lockup.png")
-        print("profile images → profile/")
-    print("final assets → brand/ + brand/png/")
+def _tail_box(dx, dy, s):
+    (x1, y1), (x2, y2) = _cubics(WORD_TAIL)[0][0], _cubics(WORD_TAIL)[0][3]
+    return (dx + s * x1, dy + s * y1, dx + s * x2, dy + s * y2)
 
-def preview():
-    o=os.path.join(HERE,"variants"); os.makedirs(o,exist_ok=True)
-    icon().resize((512,512),Image.LANCZOS).save(f"{o}/accent.png")
-    icon(counter_col=None).resize((512,512),Image.LANCZOS).save(f"{o}/plain.png")
-    icon(glyph_col=EMDK,counter_col=None,tile=False).resize((512,512),Image.LANCZOS).save(f"{o}/mono.png")
-    icon(tile_grad=False,fbleed=True,rx=26,extent=86.0).resize((512,512),Image.LANCZOS).save(f"{o}/fav.png")
-    html="""<!doctype html><meta charset=utf-8><title>LOKEN Chain</title>
-<body style="font-family:system-ui;background:#fafafb;margin:0;padding:32px">
-<h2>LOKEN — Token Chain (5 circles in L shape), emerald accent</h2>
-<div style="display:flex;gap:24px;align-items:flex-end;flex-wrap:wrap">
-<div style=text-align:center><div style="background:#fff;padding:14px;border-radius:16px;box-shadow:0 1px 6px #0001"><img src=variants/accent.png width=120></div>accent (top circle emerald)</div>
-<div style=text-align:center><div style="background:#fff;padding:14px;border-radius:16px;box-shadow:0 1px 6px #0001"><img src=variants/plain.png width=120></div>plain (all white)</div>
-<div style=text-align:center><div style="background:#fff;padding:14px;border-radius:16px;box-shadow:0 1px 6px #0001"><img src=variants/mono.png width=120></div>one ink</div>
-<div style=text-align:center><div style="background:#0b1020;padding:14px;border-radius:16px"><img src=variants/accent.png width=120></div>on dark</div>
-<div style=text-align:center><img src=variants/accent.png width=48><br><img src=variants/fav.png width=32><br><img src=variants/fav.png width=16><div style=font-size:12px;opacity:.5>small</div></div>
-</div></body>"""
-    open(os.path.join(HERE,"preview.html"),"w").write(html)
-    print("preview → _work/preview.html")
+WORD_HEIGHT = 108.0      # letter box height in lockup units, against a tile side of 128
+GAP = 36.0               # tile edge to first letter
+PAD = 24.0
 
-if __name__=="__main__":
-    mode=sys.argv[1] if len(sys.argv)>1 else "preview"
-    if mode=="preview": preview()
-    elif mode=="final": final()
-    else: print("usage: gen.py [preview|final]")
+def wordmark_svg(night=False):
+    ink = INK_ON_NIGHT if night else INDIGO; em = EMERALD_ON_TILE if night else EMERALD_ON_PAPER
+    w, letters = word(ink, em); s = WORD_HEIGHT / (letters[3] - letters[1])
+    dx = PAD - s * letters[0]; dy = PAD - s * letters[1]
+    W = dx + s * w.box[2] + PAD; H = PAD * 2 + WORD_HEIGHT
+    top = min(0.0, dy + s * w.box[1] - PAD)          # the light may rise above the letters
+    return _svg(W, H - top, f'<g transform="translate(0,{-top:.2f})">' +
+                _defs(em, ink, _tail_box(dx, dy, s), tile=False) + w.svg(dx, dy, s) + "</g>")
+
+def lockup_svg(night=False):
+    ink = INK_ON_NIGHT if night else INDIGO; em = EMERALD_ON_TILE if night else EMERALD_ON_PAPER
+    m = mark(); mx, my, ms = m.fit(64, 64, EXTENT_TILE)
+    w, letters = word(ink, em); s = WORD_HEIGHT / (letters[3] - letters[1])
+    ox = PAD + 128 + GAP; dx = ox - s * letters[0]; dy = PAD + 64 - s * (letters[1] + letters[3]) / 2
+    W = dx + s * w.box[2] + PAD; H = PAD * 2 + 128
+    top = min(0.0, dy + s * w.box[1] - PAD)
+    defs = _defs(em, ink, _tail_box(dx, dy, s)).replace('id="halo"><stop offset="0" stop-color="' + em,
+                                                        'id="halo"><stop offset="0" stop-color="' + EMERALD_ON_TILE)
+    return _svg(W, H - top, f'<g transform="translate(0,{-top:.2f})">' + defs +
+                f'<g transform="translate({PAD:g},{PAD:g})">'
+                '<rect x="0" y="0" width="128" height="128" rx="28" fill="url(#t)"/>'
+                f'{m.svg(mx, my, ms)}</g>{w.svg(dx, dy, s)}</g>')
+
+# ---------------------------------------------------------------- rasterising
+RESVG = shutil.which("resvg")
+
+def png(svg_path, out, width):
+    if RESVG is None:
+        sys.exit("resvg not found on PATH: install it (cargo install resvg) to rasterise the assets")
+    subprocess.run([RESVG, "-w", str(width), svg_path, out], check=True)
+
+def write(path, text):
+    with open(path, "w") as fh: fh.write(text)
+
+def main():
+    pngdir = os.path.join(BRAND, "png"); os.makedirs(pngdir, exist_ok=True)
+    svgs = {"icon.svg": icon_svg(), "favicon.svg": favicon_svg(), "icon-mono.svg": mono_svg(),
+            "wordmark.svg": wordmark_svg(), "wordmark-dark.svg": wordmark_svg(night=True),
+            "lockup.svg": lockup_svg(), "lockup-dark.svg": lockup_svg(night=True)}
+    for name, text in svgs.items(): write(os.path.join(BRAND, name), text)
+    b = lambda n: os.path.join(BRAND, n); p = lambda n: os.path.join(pngdir, n)
+    for sz in (512, 256, 180, 128): png(b("icon.svg"), p(f"icon-{sz}.png"), sz)
+    for sz in (48, 32, 16): png(b("favicon.svg"), p(f"favicon-{sz}.png"), sz)
+    png(b("icon-mono.svg"), p("icon-mono-512.png"), 512)
+    png(b("wordmark.svg"), p("wordmark.png"), 1120)
+    png(b("lockup.svg"), p("lockup.png"), 1360)
+    png(b("lockup-dark.svg"), p("lockup-dark.png"), 1360)
+    # the org avatar: square to the edge, since GitHub applies its own crop (square, rounded,
+    # circular); a rounded source would read as a double round with page-coloured corners
+    avatar = os.path.join(HERE, "variants", "avatar.svg"); os.makedirs(os.path.dirname(avatar), exist_ok=True)
+    write(avatar, favicon_svg(rx=0, gradient=True)); png(avatar, p("avatar-512.png"), 512)
+    Image.open(p("favicon-48.png")).save(p("favicon.ico"), sizes=[(16, 16), (32, 32), (48, 48)])
+    # the org profile renders profile/README.md, so its images sit beside it
+    if os.path.isdir(PROFILE):
+        shutil.copyfile(p("icon-512.png"), os.path.join(PROFILE, "icon.png"))
+        shutil.copyfile(p("lockup.png"), os.path.join(PROFILE, "lockup.png"))
+        shutil.copyfile(p("lockup-dark.png"), os.path.join(PROFILE, "lockup-dark.png"))
+    print("assets written: brand/, brand/png/, profile/")
+
+if __name__ == "__main__":
+    main()
