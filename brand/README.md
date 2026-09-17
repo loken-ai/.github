@@ -1,65 +1,63 @@
 # LOKEN brand assets
 
-**LOKEN**, from **Lo**cal + tok**en**: a local, multimodal, energy-aware inference engine.
+**LOKEN**, from **Lo**cal + tok**en**: a local inference server for AI models.
 
 ## The mark and the wordmark
-Two assets with two roles, never composed into a lockup.
+Two assets with two roles.
 
-- **The mark** is the square: a looped **l**, written with a broad nib on the indigo tile. Its
-  exit stroke does not end in ink: it is emitted as four tokens, each smaller than the last,
-  and the second one is lit in emerald. It is the icon, favicon and avatar.
-- **The wordmark** is the word *loken* written with the same nib, in one gesture. Its exit
-  stroke is emitted as the same four tokens, with the same one lit. It heads READMEs and pages.
+- **The mark** is a token: a hexagon cut by its three facets, holding the kernel at the centre.
+  Six cyan nodes sit on the kernel's links, six green nodes on the hexagon's own vertices, and
+  a thinner mesh ties the two rings together. Cyan and green on black. It is the icon, the
+  favicon and the avatar.
+- **The wordmark** is the word *Loken*, traced to outlines.
+- **The lockup** puts the mark above the word on its own black ground, for page headers, with
+  one line under the word: `SELF-HOSTED MULTIMODAL INFERENCE`, what loken is in three words.
 
-There is no tagline. In text, always write **LOKEN** (and `loken` for technical names: the
-org, crates, repos).
+The line belongs to the lockup; the wordmark carries the word alone. In text, always write
+**LOKEN** (and `loken` for technical names: the org, crates, repos).
 
 ## Palette
 | Role | Hex |
 |------|-----|
-| Indigo (tile, ink on paper) | `#3730A3` to `#312E81` |
-| Emerald on the tile and on dark grounds | `#34D399` |
-| Emerald on paper, one-ink cut | `#059669` |
-| Ink on dark grounds | `#ECEBFA` |
+| Cyan: hexagon, mesh, inner nodes | `#00FFFF` |
+| Green: kernel, links, vertex nodes | `#39FF14` |
+| Black: ground | `#000000` |
+| White: word, kernel halo | `#FFFFFF` |
+| Grey: the lockup line | `#888888` |
 
 ## Files
-- `icon.svg`: primary mark on the indigo tile
-- `favicon.svg`: full-bleed mark for tiny sizes
-- `icon-mono.svg`: one-ink cut; the lit token takes the same ink, without its halo
-- `wordmark.svg`, `wordmark-dark.svg`: the written word, for light and dark grounds
+- `icon.svg`: the mark on the black tile
+- `favicon.svg`: full-bleed mark for small sizes
+- `icon-mono.svg`: one-ink cut
+- `wordmark.svg`, `wordmark-dark.svg`: the word, for paper and for black grounds
+- `lockup.svg`: mark, word and line, on black
 - `png/`: `icon-{512,256,180,128}.png`, `favicon-{48,32,16}.png`, `favicon.ico` (16/32/48),
-  `icon-mono-512.png`, `wordmark.png`, `wordmark-dark.png`; `lockup.png` is a copy of `wordmark.png`
-  for published links that still point at it
+  `icon-mono-512.png`, `wordmark.png`, `wordmark-dark.png`, `lockup.png`
 - `png/avatar-512.png`: the **org avatar**. Square to the edge, no rounding of its own:
   GitHub puts the avatar in its own container (square, rounded, or circular depending on the
   surface), so a rounded source would read as a double round and its transparent corners would
   take the colour of the page. Upload it under *Settings, Profile, Upload new picture*.
-- `../profile/`: `icon.png`, `wordmark.png` and `wordmark-dark.png`, the org profile images,
-  copied by the same run
-
-READMEs pick the wordmark by theme with a `<picture>` element and a
-`prefers-color-scheme: dark` source.
+- `../profile/`: `icon.png` and `lockup.png`, the org profile images, copied by the same run
 
 ## Generating
-`_work/gen.py` is the single source: `python3 gen.py`. Every stroke is a path written once
-there; the SVGs are emitted from it and the PNGs are rasterised from those SVGs with
-[resvg](https://github.com/linebender/resvg), which must be on `PATH`. No asset contains text or
-depends on a font.
+`_work/gen.py` is the single source: `python3 gen.py`. The mark is written once as hexagon
+radii, node offsets and ring fractions; the SVGs are emitted from it and the PNGs are
+rasterised from those SVGs with [resvg](https://github.com/linebender/resvg), which must be on
+`PATH`. The word and the lockup line are traced from a system font to outlines at generation time, so
+no asset contains text or depends on a font where it is displayed.
 
-A stroke is drawn as a broad nib at a fixed angle dragged along its path, plus a narrow
-crossing nib that keeps the hairlines from vanishing. The sweep is emitted as quads between
-neighbouring samples, all wound the same way, so a nonzero fill paints their union exactly.
+Three things are derived rather than typed:
 
-Two things are derived rather than typed:
+- **the centring.** The mark's ink box, which its vertex nodes set, is centred on the tile with
+  its larger side at the extent (`104` on the tile, `116` full-bleed), so the four margins are
+  equal by construction.
+- **the stroke weights.** The mark is drawn at a fixed scale and the group is scaled to fit;
+  stroke widths are divided back out, so a line keeps its weight in every cut.
+- **the small cuts.** Below the favicon size the inner outline, the facets and the thin mesh
+  turn to mud, so they are dropped; at sixteen pixels a hairline falls under a pixel, so that
+  one cut is drawn from a thicker variant.
 
-- **the centring.** The mark's ink box (stroke and tokens; halos excluded) is centred on the
-  tile, with its larger side set to the extent (`84` on the tile, `92` full-bleed). The margins
-  are equal by construction.
-- **the wordmark tokens.** The mark's token stream, taken relative to the end of its l, is
-  carried to the end of the word and scaled by the ratio of the two l heights, so both end
-  the same way at their own size.
-
-Run `_work/verify.py` after any change: it checks that no SVG carries text, the margins and
-extent of each cut, the token count and the single lit token on the mark and the wordmark, that the wordmark has
-no tile, that no lockup vector exists and `png/lockup.png` is the wordmark, the one-ink cut, every raster
-size, that the mark survives at 16 px, and that `icon-512.png` is `icon.svg` rasterised.
+Run `_work/verify.py` after any change: it checks that no SVG carries text or leaves the
+palette, the parts of the mark and of the reduced cut, the one-ink cut, that the wordmark holds
+the word alone and the lockup carries its ground, every raster size, that the mark is centred and
+survives at sixteen pixels, and that `icon-512.png` is `icon.svg` rasterised.

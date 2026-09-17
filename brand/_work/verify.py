@@ -10,64 +10,66 @@ sys.path.insert(0, HERE)
 import gen
 
 B = gen.BRAND; P = os.path.join(B, "png"); NS = "{http://www.w3.org/2000/svg}"
+PALETTE = {gen.CYAN, gen.GREEN, gen.BLACK, gen.WHITE, gen.SUBTLE, "#111111", "NONE"}
 fails = []
 
 def check(cond, label, detail=""):
     print(f"  {'ok  ' if cond else 'FAIL'}  {label}{'  ' + detail if detail else ''}")
     if not cond: fails.append(label)
 
-def ink_box(root):
-    """Ink box of an SVG: every path point and every solid circle; halos (url fills) excluded."""
-    xs, ys = [], []
+def colours(root):
+    out = set()
     for el in root.iter():
-        fill = el.get("fill", "")
-        if el.tag == NS + "path":
-            v = [float(n) for n in re.findall(r"-?\d+\.?\d*", el.get("d"))]
-            xs += v[0::2]; ys += v[1::2]
-        elif el.tag == NS + "circle" and not fill.startswith("url("):
-            cx, cy, r = (float(el.get(k)) for k in ("cx", "cy", "r"))
-            xs += [cx - r, cx + r]; ys += [cy - r, cy + r]
-    return min(xs), min(ys), max(xs), max(ys)
+        for a in ("fill", "stroke"):
+            if el.get(a): out.add(el.get(a).upper())
+    return out
 
-# ---- no asset carries text or asks for a font
+def counts(root):
+    return {t: sum(1 for _ in root.iter(NS + t)) for t in ("circle", "line", "polygon", "path", "rect")}
+
+# ---- no asset carries text or asks for a font, and none leaves the palette
 for name in sorted(f for f in os.listdir(B) if f.endswith(".svg")):
-    text = open(os.path.join(B, name)).read()
+    root = ET.parse(os.path.join(B, name)).getroot(); raw = open(os.path.join(B, name)).read()
     print(name)
-    check("<text" not in text and "font-family" not in text, "no text, no font")
+    check("<text" not in raw and "font-family" not in raw, "no text, no font")
+    off = colours(root) - PALETTE
+    check(not off, "palette only", f"outside: {sorted(off)}" if off else "")
 
-# ---- the mark: centred on its tile at the declared extent, one lit token
-for name, lo, hi, extent in (("icon.svg", 4, 124, gen.EXTENT_TILE), ("favicon.svg", 0, 128, gen.EXTENT_BLEED),
-                             ("icon-mono.svg", 0, 128, gen.EXTENT_TILE)):
-    root = ET.parse(os.path.join(B, name)).getroot()
-    print(name)
-    x0, y0, x1, y1 = ink_box(root)
-    ml, mr, mt, mb = x0 - lo, hi - x1, y0 - lo, hi - y1
-    check(abs(ml - mr) < 0.05 and abs(mt - mb) < 0.05, "equal margins",
-          f"left={ml:.2f} right={mr:.2f} top={mt:.2f} bottom={mb:.2f}")
-    check(abs(max(x1 - x0, y1 - y0) - extent) < 0.05, f"extent {extent:g}", f"got {max(x1 - x0, y1 - y0):.2f}")
-    solid = [c.get("fill") for c in root.iter(NS + "circle") if not c.get("fill").startswith("url(")]
-    check(len(solid) == len(gen.TOKENS), f"{len(gen.TOKENS)} tokens", f"got {len(solid)}")
-    lit = [f for f in solid if f in (gen.EMERALD_ON_TILE, gen.EMERALD_ON_PAPER)]
-    if "mono" in name:
-        inks = {el.get("fill") for el in root.iter() if el.get("fill")}
-        check(len(inks) == 1, "one ink", f"got {sorted(inks)}")
-    else:
-        check(len(lit) == 1 and solid.index(lit[0]) == gen.LIT, "exactly one lit token, the second emitted")
+# ---- the mark: its parts, and the small cut dropping what it cannot hold
+print("icon.svg / favicon.svg / icon-mono.svg")
+icon = counts(ET.parse(os.path.join(B, "icon.svg")).getroot())
+fav = counts(ET.parse(os.path.join(B, "favicon.svg")).getroot())
+nodes = len(gen.LINK_IN) * 2
+check(icon["circle"] == nodes + 4, f"{nodes} nodes and the kernel with its rings", f"got {icon['circle']}")
+check(icon["polygon"] == 2 and icon["line"] == 3 + len(gen.LINK_IN) * 2 + 2, "hexagons, facets, links and mesh",
+      f"got {icon['polygon']} polygons, {icon['line']} lines")
+check(fav["polygon"] == 1 and fav["line"] == len(gen.LINK_IN), "small cut keeps hexagon and links only",
+      f"got {fav['polygon']} polygons, {fav['line']} lines")
+mono = colours(ET.parse(os.path.join(B, "icon-mono.svg")).getroot())
+check(mono <= {gen.BLACK, gen.WHITE, "NONE"}, "one ink", f"got {sorted(mono)}")
 
-# ---- the wordmark: the mark's token stream, the same token lit, and never composed with the tile
+# ---- the wordmark carries the word alone, the lockup carries its own ground
+print("wordmark.svg / lockup.svg")
 for name in ("wordmark.svg", "wordmark-dark.svg"):
     root = ET.parse(os.path.join(B, name)).getroot()
-    print(name)
-    solid = [c.get("fill") for c in root.iter(NS + "circle") if not c.get("fill").startswith("url(")]
-    lit = [f for f in solid if f in (gen.EMERALD_ON_TILE, gen.EMERALD_ON_PAPER)]
-    check(len(solid) == len(gen.TOKENS), f"{len(gen.TOKENS)} tokens", f"got {len(solid)}")
-    check(len(lit) == 1 and solid.index(lit[0]) == gen.LIT, "exactly one lit token, the second emitted")
-    check(root.find(NS + "rect") is None and "url(#t)" not in open(os.path.join(B, name)).read(), "no tile")
-check(not any("lockup" in f for f in os.listdir(B)), "no lockup vector")
-check(open(os.path.join(P, "lockup.png"), "rb").read() == open(os.path.join(P, "wordmark.png"), "rb").read(),
-      "png/lockup.png is the wordmark alone")
+    c = counts(root)
+    check(c["path"] == 1 and c["polygon"] == 0 and c["circle"] == 0, f"{name}: the word alone",
+          f"got {c}")
+lock = ET.parse(os.path.join(B, "lockup.svg")).getroot()
+c = counts(lock)
+check(c["rect"] == 1 and lock.find(NS + "rect").get("fill") == gen.BLACK, "lockup carries a black ground")
+check(c["path"] == 2 and c["polygon"] == 2, "lockup carries the mark, the word and the line",
+      f"got {c}")
 
-# ---- rasters: present at their sizes, and the same drawing as the vector
+# ---- traced letters: an open bay is not a counter
+print("letter counters")
+counters = {ch: len(gen._holes(gen._mask(ch, 200))) for ch in "SCGOED"}
+check(counters["S"] == 0 and counters["C"] == 0 and counters["G"] == 0, "open bays are not filled",
+      f"got S={counters['S']} C={counters['C']} G={counters['G']}")
+check(counters["O"] == 1 and counters["D"] == 1, "closed counters are found",
+      f"got O={counters['O']} D={counters['D']}")
+
+# ---- rasters: present at their sizes, centred, and the same drawing as the vector
 print("png/")
 expect = {f"icon-{s}.png": (s, s) for s in (512, 256, 180, 128)}
 expect.update({f"favicon-{s}.png": (s, s) for s in (48, 32, 16)})
@@ -75,15 +77,24 @@ expect.update({"icon-mono-512.png": (512, 512), "avatar-512.png": (512, 512)})
 for f, size in expect.items():
     path = os.path.join(P, f)
     check(os.path.exists(path) and Image.open(path).size == size, f, f"expected {size}")
-for f in ("wordmark.png", "wordmark-dark.png", "favicon.ico"):
+for f in ("wordmark.png", "wordmark-dark.png", "lockup.png", "favicon.ico"):
     check(os.path.exists(os.path.join(P, f)), f)
-fav = np.array(Image.open(os.path.join(P, "favicon-16.png")).convert("RGB")).astype(int)
-check((fav.max(axis=2) > 170).sum() >= 12, "the mark survives at 16 px")
+
+a = np.array(Image.open(os.path.join(P, "icon-512.png")).convert("RGB")).astype(int)
+ink = a.max(axis=2) > 90
+ys, xs = np.where(ink)
+ml, mr, mt, mb = xs.min(), 511 - xs.max(), ys.min(), 511 - ys.max()
+check(abs(ml - mr) <= 2 and abs(mt - mb) <= 2, "the mark is centred on the tile",
+      f"left={ml} right={mr} top={mt} bottom={mb}")
+tiny = np.array(Image.open(os.path.join(P, "favicon-16.png")).convert("RGB")).astype(int)
+check((tiny.max(axis=2) > 120).sum() >= 40, "the mark survives at 16 px",
+      f"lit pixels {(tiny.max(axis=2) > 120).sum()}")
 
 probe = os.path.join(HERE, "variants", "verify-icon.png"); os.makedirs(os.path.dirname(probe), exist_ok=True)
 subprocess.run([gen.RESVG, "-w", "512", os.path.join(B, "icon.svg"), probe], check=True)
-a = np.array(Image.open(probe).convert("RGBA")).astype(int); b = np.array(Image.open(os.path.join(P, "icon-512.png")).convert("RGBA")).astype(int)
-check(np.abs(a - b).max() <= 1, "icon-512.png is icon.svg rasterised")
+v = np.array(Image.open(probe).convert("RGBA")).astype(int)
+r = np.array(Image.open(os.path.join(P, "icon-512.png")).convert("RGBA")).astype(int)
+check(np.abs(v - r).max() <= 1, "icon-512.png is icon.svg rasterised")
 
 print()
 print("FAILURES: " + ", ".join(fails) if fails else "all checks passed")
