@@ -2,14 +2,14 @@
 
 **LOKEN**, from **Lo**cal + tok**en**: a local, multimodal, energy-aware inference engine.
 
-## The mark
-A looped **l**, written with a broad nib on the indigo tile. Its exit stroke does not end in
-ink: it is emitted as four tokens, each smaller than the last, and the second one is lit in
-emerald. The pen stroke is the kernel at work; the dots are what it produces.
+## The mark and the wordmark
+Two assets with two roles, never composed into a lockup.
 
-The **wordmark** is the word *loken* written with the same nib, in one gesture. Its last stroke
-rises from ink to emerald and sets down a small light. The mark and the word end the same way:
-in a light.
+- **The mark** is the square: a looped **l**, written with a broad nib on the indigo tile. Its
+  exit stroke does not end in ink: it is emitted as four tokens, each smaller than the last,
+  and the second one is lit in emerald. It is the icon, favicon and avatar.
+- **The wordmark** is the word *loken* written with the same nib, in one gesture. Its exit
+  stroke is emitted as the same four tokens, with the same one lit. It heads READMEs and pages.
 
 There is no tagline. In text, always write **LOKEN** (and `loken` for technical names: the
 org, crates, repos).
@@ -27,17 +27,16 @@ org, crates, repos).
 - `favicon.svg`: full-bleed mark for tiny sizes
 - `icon-mono.svg`: one-ink cut; the lit token takes the same ink, without its halo
 - `wordmark.svg`, `wordmark-dark.svg`: the written word, for light and dark grounds
-- `lockup.svg`, `lockup-dark.svg`: tile and word, for light and dark grounds
 - `png/`: `icon-{512,256,180,128}.png`, `favicon-{48,32,16}.png`, `favicon.ico` (16/32/48),
-  `icon-mono-512.png`, `wordmark.png`, `lockup.png`, `lockup-dark.png`
+  `icon-mono-512.png`, `wordmark.png`, `wordmark-dark.png`
 - `png/avatar-512.png`: the **org avatar**. Square to the edge, no rounding of its own:
   GitHub puts the avatar in its own container (square, rounded, or circular depending on the
   surface), so a rounded source would read as a double round and its transparent corners would
   take the colour of the page. Upload it under *Settings, Profile, Upload new picture*.
-- `../profile/`: `icon.png`, `lockup.png` and `lockup-dark.png`, the org profile images,
+- `../profile/`: `icon.png`, `wordmark.png` and `wordmark-dark.png`, the org profile images,
   copied by the same run
 
-READMEs pick the lockup by theme with a `<picture>` element and a
+READMEs pick the wordmark by theme with a `<picture>` element and a
 `prefers-color-scheme: dark` source.
 
 ## Generating
@@ -55,9 +54,11 @@ Two things are derived rather than typed:
 - **the centring.** The mark's ink box (stroke and tokens; halos excluded) is centred on the
   tile, with its larger side set to the extent (`84` on the tile, `92` full-bleed). The margins
   are equal by construction.
-- **the lockup scale.** The word's letter box is scaled to a fixed height against the tile and
-  centred on the tile's axis; the rising light may extend above it.
+- **the wordmark tokens.** The mark's token stream, taken relative to the end of its l, is
+  carried to the end of the word and scaled by the ratio of the two l heights, so both end
+  the same way at their own size.
 
 Run `_work/verify.py` after any change: it checks that no SVG carries text, the margins and
-extent of each cut, the token count and the single lit token, the one-ink cut, every raster
+extent of each cut, the token count and the single lit token on the mark and the wordmark, that the wordmark has
+no tile and no lockup exists, the one-ink cut, every raster
 size, that the mark survives at 16 px, and that `icon-512.png` is `icon.svg` rasterised.

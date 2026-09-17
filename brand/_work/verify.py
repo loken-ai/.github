@@ -54,6 +54,17 @@ for name, lo, hi, extent in (("icon.svg", 4, 124, gen.EXTENT_TILE), ("favicon.sv
     else:
         check(len(lit) == 1 and solid.index(lit[0]) == gen.LIT, "exactly one lit token, the second emitted")
 
+# ---- the wordmark: the mark's token stream, the same token lit, and never composed with the tile
+for name in ("wordmark.svg", "wordmark-dark.svg"):
+    root = ET.parse(os.path.join(B, name)).getroot()
+    print(name)
+    solid = [c.get("fill") for c in root.iter(NS + "circle") if not c.get("fill").startswith("url(")]
+    lit = [f for f in solid if f in (gen.EMERALD_ON_TILE, gen.EMERALD_ON_PAPER)]
+    check(len(solid) == len(gen.TOKENS), f"{len(gen.TOKENS)} tokens", f"got {len(solid)}")
+    check(len(lit) == 1 and solid.index(lit[0]) == gen.LIT, "exactly one lit token, the second emitted")
+    check(root.find(NS + "rect") is None and "url(#t)" not in open(os.path.join(B, name)).read(), "no tile")
+check(not any("lockup" in f for f in os.listdir(B) + os.listdir(P)), "no lockup asset")
+
 # ---- rasters: present at their sizes, and the same drawing as the vector
 print("png/")
 expect = {f"icon-{s}.png": (s, s) for s in (512, 256, 180, 128)}
@@ -62,7 +73,7 @@ expect.update({"icon-mono-512.png": (512, 512), "avatar-512.png": (512, 512)})
 for f, size in expect.items():
     path = os.path.join(P, f)
     check(os.path.exists(path) and Image.open(path).size == size, f, f"expected {size}")
-for f in ("wordmark.png", "lockup.png", "lockup-dark.png", "favicon.ico"):
+for f in ("wordmark.png", "wordmark-dark.png", "favicon.ico"):
     check(os.path.exists(os.path.join(P, f)), f)
 fav = np.array(Image.open(os.path.join(P, "favicon-16.png")).convert("RGB")).astype(int)
 check((fav.max(axis=2) > 170).sum() >= 12, "the mark survives at 16 px")

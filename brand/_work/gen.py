@@ -3,8 +3,9 @@
 
 The mark is a looped l written with a broad nib on the indigo tile. Its exit stroke is
 emitted as four shrinking tokens, the second one lit in emerald. The wordmark is the word
-loken written with the same nib; its last stroke rises from ink to emerald and sets down a
-light. No asset carries text or depends on an installed font.
+loken written with the same nib, its exit stroke emitted as the same tokens. The two are
+separate assets with separate roles and are never composed. No asset carries text or depends
+on an installed font.
 
 Every shape is vector geometry written once below. SVGs are emitted from it and PNGs are
 rasterised from those SVGs with resvg, so vector and raster are the same drawing. Run from
@@ -105,7 +106,7 @@ LIT = 1                  # the token that glows: the second one emitted
 
 def mark(ink=WHITE, lit=EMERALD_ON_TILE, halo=True):
     """The looped l and its token stream. `lit=None` gives the one-ink cut."""
-    m = Drawing(); m.stroke(LOOP_L, 10.0, ink)
+    m = Drawing(); m.stroke(LOOP_L, MARK_NIB, ink)
     for i, (x, y, r) in enumerate(TOKENS):
         if i == LIT and lit:
             if halo: m.glow(x, y, r * 2.4, "halo")
@@ -122,32 +123,33 @@ WORD = ("M0,98 C14,94 30,70 36,42 C40,20 34,6 28,10 C20,16 20,50 24,80 C26,96 34
         "C150,100 160,90 166,84 C172,80 184,74 180,66 C176,58 158,64 158,84 C158,100 176,102 186,94 "
         "C190,88 194,74 196,62 C196,76 196,90 196,100 C198,80 204,62 218,62 C232,62 230,80 230,96 "
         "C231,102 238,102 244,96")
-WORD_TAIL = "M244,96 C256,84 266,62 274,42"
-WORD_LIGHT = (278, 34, 5.0)
+MARK_NIB = 10.0; WORD_NIB = 7.0
 
-def word(ink, light):
-    """The written word, its rising tail and the light it sets down; the box covers the letters."""
-    w = Drawing(); w.stroke(WORD, 7.0, ink)
-    letters = list(w.box)
-    w.stroke(WORD_TAIL, 5.0, "url(#tail)")
-    x, y, r = WORD_LIGHT; w.glow(x, y, r * 3.2, "light"); w.disc(x, y, r, light)
-    return w, letters
+def word_tokens():
+    """The mark's token stream, carried to the end of the word at the ratio of the two l heights."""
+    height = lambda d: (lambda ys: max(ys) - min(ys))([y for _, y in _samples(d)])
+    k = height(WORD) / height(LOOP_L)
+    mx, my = _cubics(LOOP_L)[-1][3]; wx, wy = _cubics(WORD)[-1][3]
+    return [(wx + k * (x - mx), wy + k * (y - my), k * r) for x, y, r in TOKENS]
+
+def word(ink, lit):
+    """The written word; its exit stroke is emitted as tokens, the same one lit as on the mark."""
+    w = Drawing(); w.stroke(WORD, WORD_NIB, ink)
+    for i, (x, y, r) in enumerate(word_tokens()):
+        if i == LIT:
+            w.glow(x, y, (r + 0.6) * 2.4, "halo"); w.disc(x, y, r + 0.6, lit)
+        else:
+            w.disc(x, y, r, ink)
+    return w
 
 # ---------------------------------------------------------------- SVG assets
-def _defs(emerald, ink=None, tail_box=None, tile=True):
+def _defs(emerald, tile=True):
     d = []
     if tile:
         d.append(f'<linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{INDIGO_TOP}"/>'
                  f'<stop offset="1" stop-color="{INDIGO}"/></linearGradient>')
     d.append(f'<radialGradient id="halo"><stop offset="0" stop-color="{emerald}" stop-opacity=".6"/>'
              f'<stop offset="1" stop-color="{emerald}" stop-opacity="0"/></radialGradient>')
-    if tail_box:
-        x1, y1, x2, y2 = tail_box
-        d.append(f'<radialGradient id="light"><stop offset="0" stop-color="{emerald}" stop-opacity=".5"/>'
-                 f'<stop offset="1" stop-color="{emerald}" stop-opacity="0"/></radialGradient>'
-                 f'<linearGradient id="tail" gradientUnits="userSpaceOnUse" x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}">'
-                 f'<stop offset="0" stop-color="{ink}"/><stop offset=".55" stop-color="{emerald}" stop-opacity=".8"/>'
-                 f'<stop offset="1" stop-color="{emerald}" stop-opacity="0"/></linearGradient>')
     return "<defs>" + "".join(d) + "</defs>"
 
 def _svg(w, h, body):
@@ -173,36 +175,12 @@ def mono_svg():
     m = mark(ink=EMERALD_ON_PAPER, lit=None); dx, dy, s = m.fit(64, 64, EXTENT_TILE)
     return _svg(128, 128, m.svg(dx, dy, s))
 
-def _tail_box(dx, dy, s):
-    (x1, y1), (x2, y2) = _cubics(WORD_TAIL)[0][0], _cubics(WORD_TAIL)[0][3]
-    return (dx + s * x1, dy + s * y1, dx + s * x2, dy + s * y2)
-
-WORD_HEIGHT = 108.0      # letter box height in lockup units, against a tile side of 128
-GAP = 36.0               # tile edge to first letter
-PAD = 24.0
+PAD = 24.0               # clear ground around the wordmark, in letter units
 
 def wordmark_svg(night=False):
     ink = INK_ON_NIGHT if night else INDIGO; em = EMERALD_ON_TILE if night else EMERALD_ON_PAPER
-    w, letters = word(ink, em); s = WORD_HEIGHT / (letters[3] - letters[1])
-    dx = PAD - s * letters[0]; dy = PAD - s * letters[1]
-    W = dx + s * w.box[2] + PAD; H = PAD * 2 + WORD_HEIGHT
-    top = min(0.0, dy + s * w.box[1] - PAD)          # the light may rise above the letters
-    return _svg(W, H - top, f'<g transform="translate(0,{-top:.2f})">' +
-                _defs(em, ink, _tail_box(dx, dy, s), tile=False) + w.svg(dx, dy, s) + "</g>")
-
-def lockup_svg(night=False):
-    ink = INK_ON_NIGHT if night else INDIGO; em = EMERALD_ON_TILE if night else EMERALD_ON_PAPER
-    m = mark(); mx, my, ms = m.fit(64, 64, EXTENT_TILE)
-    w, letters = word(ink, em); s = WORD_HEIGHT / (letters[3] - letters[1])
-    ox = PAD + 128 + GAP; dx = ox - s * letters[0]; dy = PAD + 64 - s * (letters[1] + letters[3]) / 2
-    W = dx + s * w.box[2] + PAD; H = PAD * 2 + 128
-    top = min(0.0, dy + s * w.box[1] - PAD)
-    defs = _defs(em, ink, _tail_box(dx, dy, s)).replace('id="halo"><stop offset="0" stop-color="' + em,
-                                                        'id="halo"><stop offset="0" stop-color="' + EMERALD_ON_TILE)
-    return _svg(W, H - top, f'<g transform="translate(0,{-top:.2f})">' + defs +
-                f'<g transform="translate({PAD:g},{PAD:g})">'
-                '<rect x="0" y="0" width="128" height="128" rx="28" fill="url(#t)"/>'
-                f'{m.svg(mx, my, ms)}</g>{w.svg(dx, dy, s)}</g>')
+    w = word(ink, em); x0, y0, x1, y1 = w.box
+    return _svg(x1 - x0 + 2 * PAD, y1 - y0 + 2 * PAD, _defs(em, tile=False) + w.svg(PAD - x0, PAD - y0, 1.0))
 
 # ---------------------------------------------------------------- rasterising
 RESVG = shutil.which("resvg")
@@ -218,16 +196,14 @@ def write(path, text):
 def main():
     pngdir = os.path.join(BRAND, "png"); os.makedirs(pngdir, exist_ok=True)
     svgs = {"icon.svg": icon_svg(), "favicon.svg": favicon_svg(), "icon-mono.svg": mono_svg(),
-            "wordmark.svg": wordmark_svg(), "wordmark-dark.svg": wordmark_svg(night=True),
-            "lockup.svg": lockup_svg(), "lockup-dark.svg": lockup_svg(night=True)}
+            "wordmark.svg": wordmark_svg(), "wordmark-dark.svg": wordmark_svg(night=True)}
     for name, text in svgs.items(): write(os.path.join(BRAND, name), text)
     b = lambda n: os.path.join(BRAND, n); p = lambda n: os.path.join(pngdir, n)
     for sz in (512, 256, 180, 128): png(b("icon.svg"), p(f"icon-{sz}.png"), sz)
     for sz in (48, 32, 16): png(b("favicon.svg"), p(f"favicon-{sz}.png"), sz)
     png(b("icon-mono.svg"), p("icon-mono-512.png"), 512)
     png(b("wordmark.svg"), p("wordmark.png"), 1120)
-    png(b("lockup.svg"), p("lockup.png"), 1360)
-    png(b("lockup-dark.svg"), p("lockup-dark.png"), 1360)
+    png(b("wordmark-dark.svg"), p("wordmark-dark.png"), 1120)
     # the org avatar: square to the edge, since GitHub applies its own crop (square, rounded,
     # circular); a rounded source would read as a double round with page-coloured corners
     avatar = os.path.join(HERE, "variants", "avatar.svg"); os.makedirs(os.path.dirname(avatar), exist_ok=True)
@@ -236,8 +212,8 @@ def main():
     # the org profile renders profile/README.md, so its images sit beside it
     if os.path.isdir(PROFILE):
         shutil.copyfile(p("icon-512.png"), os.path.join(PROFILE, "icon.png"))
-        shutil.copyfile(p("lockup.png"), os.path.join(PROFILE, "lockup.png"))
-        shutil.copyfile(p("lockup-dark.png"), os.path.join(PROFILE, "lockup-dark.png"))
+        shutil.copyfile(p("wordmark.png"), os.path.join(PROFILE, "wordmark.png"))
+        shutil.copyfile(p("wordmark-dark.png"), os.path.join(PROFILE, "wordmark-dark.png"))
     print("assets written: brand/, brand/png/, profile/")
 
 if __name__ == "__main__":

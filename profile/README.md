@@ -1,14 +1,14 @@
 <!--
   ORG PROFILE - rendered at https://github.com/loken-ai
-  Branding: a looped l written with a broad nib on the indigo tile, its exit stroke emitted as
-  tokens, the second one lit. Full brand kit and source SVGs live in this repo under brand/.
-  In text, write "LOKEN".
+  Branding: the header shows the wordmark alone, the word loken written with a broad nib, its
+  exit stroke emitted as tokens, the second one lit. The square mark is the avatar. Full brand
+  kit and source SVGs live in this repo under brand/. In text, write "LOKEN".
 -->
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="lockup-dark.png">
-    <img src="lockup.png" alt="LOKEN" width="480">
+    <source media="(prefers-color-scheme: dark)" srcset="wordmark-dark.png">
+    <img src="wordmark.png" alt="LOKEN" width="360">
   </picture>
 </p>
 
