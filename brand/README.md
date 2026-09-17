@@ -10,8 +10,9 @@ Two assets with two roles.
   a thinner mesh ties the two rings together. Cyan and green on black. It is the icon, the
   favicon and the avatar.
 - **The wordmark** is the word *Loken*, traced to outlines.
-- **The lockup** puts the mark above the word on its own black ground, for page headers, with
-  one line under the word: `SELF-HOSTED MULTIMODAL INFERENCE`, what loken is in three words.
+- **The lockup** puts the mark above the word, for page headers, with one line under the word:
+  `SELF-HOSTED MULTIMODAL INFERENCE`, what loken is in three words. Its ground is transparent;
+  the mark keeps its colours on either ground and only the word and the line change ink.
 
 The line belongs to the lockup; the wordmark carries the word alone. In text, always write
 **LOKEN** (and `loken` for technical names: the org, crates, repos).
@@ -30,14 +31,15 @@ The line belongs to the lockup; the wordmark carries the word alone. In text, al
 - `favicon.svg`: full-bleed mark for small sizes
 - `icon-mono.svg`: one-ink cut
 - `wordmark.svg`, `wordmark-dark.svg`: the word, for paper and for black grounds
-- `lockup.svg`: mark, word and line, on black
+- `lockup.svg`, `lockup-dark.svg`: mark, word and line, for paper and for black grounds
 - `png/`: `icon-{512,256,180,128}.png`, `favicon-{48,32,16}.png`, `favicon.ico` (16/32/48),
-  `icon-mono-512.png`, `wordmark.png`, `wordmark-dark.png`, `lockup.png`
+  `icon-mono-512.png`, `wordmark.png`, `wordmark-dark.png`, `lockup.png`, `lockup-dark.png`
 - `png/avatar-512.png`: the **org avatar**. Square to the edge, no rounding of its own:
   GitHub puts the avatar in its own container (square, rounded, or circular depending on the
   surface), so a rounded source would read as a double round and its transparent corners would
   take the colour of the page. Upload it under *Settings, Profile, Upload new picture*.
-- `../profile/`: `icon.png` and `lockup.png`, the org profile images, copied by the same run
+- `../profile/`: `icon.png`, `lockup.png` and `lockup-dark.png`, the org profile images,
+  copied by the same run; the README picks the lockup by colour scheme
 
 ## Generating
 `_work/gen.py` is the single source: `python3 gen.py`. The mark is written once as hexagon
@@ -59,5 +61,5 @@ Three things are derived rather than typed:
 
 Run `_work/verify.py` after any change: it checks that no SVG carries text or leaves the
 palette, the parts of the mark and of the reduced cut, the one-ink cut, that the wordmark holds
-the word alone and the lockup carries its ground, every raster size, that the mark is centred and
+the word alone and the lockup keeps a transparent ground, every raster size, that the mark is centred and
 survives at sixteen pixels, and that `icon-512.png` is `icon.svg` rasterised.

@@ -55,11 +55,10 @@ for name in ("wordmark.svg", "wordmark-dark.svg"):
     c = counts(root)
     check(c["path"] == 1 and c["polygon"] == 0 and c["circle"] == 0, f"{name}: the word alone",
           f"got {c}")
-lock = ET.parse(os.path.join(B, "lockup.svg")).getroot()
-c = counts(lock)
-check(c["rect"] == 1 and lock.find(NS + "rect").get("fill") == gen.BLACK, "lockup carries a black ground")
-check(c["path"] == 2 and c["polygon"] == 2, "lockup carries the mark, the word and the line",
-      f"got {c}")
+for name in ("lockup.svg", "lockup-dark.svg"):
+    c = counts(ET.parse(os.path.join(B, name)).getroot())
+    check(c["rect"] == 0, f"{name}: transparent ground", f"got {c['rect']} rects")
+    check(c["path"] == 2 and c["polygon"] == 2, f"{name}: the mark, the word and the line", f"got {c}")
 
 # ---- traced letters: an open bay is not a counter
 print("letter counters")
@@ -77,7 +76,7 @@ expect.update({"icon-mono-512.png": (512, 512), "avatar-512.png": (512, 512)})
 for f, size in expect.items():
     path = os.path.join(P, f)
     check(os.path.exists(path) and Image.open(path).size == size, f, f"expected {size}")
-for f in ("wordmark.png", "wordmark-dark.png", "lockup.png", "favicon.ico"):
+for f in ("wordmark.png", "wordmark-dark.png", "lockup.png", "lockup-dark.png", "favicon.ico"):
     check(os.path.exists(os.path.join(P, f)), f)
 
 a = np.array(Image.open(os.path.join(P, "icon-512.png")).convert("RGB")).astype(int)

@@ -217,8 +217,10 @@ def wordmark_svg(night=True):
     body = f'<g transform="translate({PAD:.2f},{PAD:.2f})"><path d="{word}" fill="{ink}" fill-rule="evenodd"/></g>'
     return _svg(round(w, 2), round(h, 2), body)
 
-def lockup_svg(W=680.0, H=520.0):
-    """The full composition on its own black ground: the token, the word, the line."""
+def lockup_svg(night=True, W=680.0, H=520.0):
+    """The full composition on a transparent ground: the token, the word, the line.
+
+    The mark keeps its colours on either ground; only the word and the line change ink."""
     x0, y0, x1, y1 = mark_box(); mh = y1 - y0
     cap = 44.0; word, ww = text_paths(WORD, cap)
     sub, sw = text_paths(SUBLINE, SUB_CAP, SUB_TRACK)
@@ -227,10 +229,10 @@ def lockup_svg(W=680.0, H=520.0):
     cy = (H - block) / 2 + mh / 2; wy = cy + mh / 2 + word_gap
     body = (f'<g transform="translate({W / 2:g},{cy:.2f})">{mark()}</g>'
             f'<g transform="translate({(W - ww) / 2:.2f},{wy:.2f})">'
-            f'<path d="{word}" fill="{WHITE}" fill-rule="evenodd"/></g>'
+            f'<path d="{word}" fill="{WHITE if night else "#111111"}" fill-rule="evenodd"/></g>'
             f'<g transform="translate({(W - sw) / 2:.2f},{wy + cap + sub_gap:.2f})">'
             f'<path d="{sub}" fill="{SUBTLE}" fill-rule="evenodd"/></g>')
-    return _svg(W, H, body, background=BLACK)
+    return _svg(W, H, body)
 
 # ---------------------------------------------------------------- rasterising
 RESVG = shutil.which("resvg")
@@ -247,7 +249,7 @@ def main():
     pngdir = os.path.join(BRAND, "png"); os.makedirs(pngdir, exist_ok=True)
     svgs = {"icon.svg": icon_svg(), "favicon.svg": favicon_svg(), "icon-mono.svg": mono_svg(),
             "wordmark.svg": wordmark_svg(night=False), "wordmark-dark.svg": wordmark_svg(),
-            "lockup.svg": lockup_svg()}
+            "lockup.svg": lockup_svg(night=False), "lockup-dark.svg": lockup_svg()}
     for name, text in svgs.items(): write(os.path.join(BRAND, name), text)
     b = lambda n: os.path.join(BRAND, n); p = lambda n: os.path.join(pngdir, n)
     for sz in (512, 256, 180, 128): png(b("icon.svg"), p(f"icon-{sz}.png"), sz)
@@ -260,6 +262,7 @@ def main():
     png(b("wordmark.svg"), p("wordmark.png"), 1120)
     png(b("wordmark-dark.svg"), p("wordmark-dark.png"), 1120)
     png(b("lockup.svg"), p("lockup.png"), 1360)
+    png(b("lockup-dark.svg"), p("lockup-dark.png"), 1360)
     # the org avatar: square to the edge, since GitHub applies its own crop (square, rounded,
     # circular); a rounded source would read as a double round with page-coloured corners
     avatar = os.path.join(HERE, "variants", "avatar.svg")
@@ -270,6 +273,7 @@ def main():
     if os.path.isdir(PROFILE):
         shutil.copyfile(p("icon-512.png"), os.path.join(PROFILE, "icon.png"))
         shutil.copyfile(p("lockup.png"), os.path.join(PROFILE, "lockup.png"))
+        shutil.copyfile(p("lockup-dark.png"), os.path.join(PROFILE, "lockup-dark.png"))
     print("assets written: brand/, brand/png/, profile/")
 
 if __name__ == "__main__":
