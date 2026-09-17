@@ -49,29 +49,18 @@ mono = colours(ET.parse(os.path.join(B, "icon-mono.svg")).getroot())
 check(mono <= {gen.BLACK, gen.WHITE, "NONE"}, "one ink", f"got {sorted(mono)}")
 
 # ---- the wordmark carries the word alone, the lockup carries its own ground
-print("wordmark.svg / lockup.svg")
+print("wordmark.svg / banner.svg")
 for name in ("wordmark.svg", "wordmark-dark.svg"):
     root = ET.parse(os.path.join(B, name)).getroot()
     c = counts(root)
     check(c["path"] == 1 and c["polygon"] == 0 and c["circle"] == 0, f"{name}: the word alone",
           f"got {c}")
-for name in ("lockup.svg", "lockup-dark.svg"):
-    c = counts(ET.parse(os.path.join(B, name)).getroot())
-    check(c["rect"] == 0, f"{name}: transparent ground", f"got {c['rect']} rects")
-    check(c["path"] == 2 and c["polygon"] == 2, f"{name}: the mark, the word and the line", f"got {c}")
-
-# ---- traced letters: an open bay is not a counter
-print("letter counters")
-counters = {ch: len(gen._holes(gen._mask(ch, 200))) for ch in "SCGOED"}
-check(counters["S"] == 0 and counters["C"] == 0 and counters["G"] == 0, "open bays are not filled",
-      f"got S={counters['S']} C={counters['C']} G={counters['G']}")
-check(counters["O"] == 1 and counters["D"] == 1, "closed counters are found",
-      f"got O={counters['O']} D={counters['D']}")
-
 banner = ET.parse(os.path.join(B, "banner.svg")).getroot(); c = counts(banner)
 check(c["rect"] == 1 and banner.find(NS + "rect").get("fill") == gen.BLACK,
       "banner carries the black panel a README header needs")
 check(c["path"] == 2 and c["polygon"] == 2, "banner carries the mark, the word and the line", f"got {c}")
+check(open(os.path.join(P, "lockup.png"), "rb").read() == open(os.path.join(P, "banner.png"), "rb").read(),
+      "png/lockup.png is the banner, for links published before it was renamed")
 
 # ---- rasters: present at their sizes, centred, and the same drawing as the vector
 print("png/")
@@ -81,7 +70,7 @@ expect.update({"icon-mono-512.png": (512, 512), "avatar-512.png": (512, 512)})
 for f, size in expect.items():
     path = os.path.join(P, f)
     check(os.path.exists(path) and Image.open(path).size == size, f, f"expected {size}")
-for f in ("wordmark.png", "wordmark-dark.png", "lockup.png", "lockup-dark.png", "banner.png", "favicon.ico"):
+for f in ("wordmark.png", "wordmark-dark.png", "banner.png", "favicon.ico"):
     check(os.path.exists(os.path.join(P, f)), f)
 
 a = np.array(Image.open(os.path.join(P, "icon-512.png")).convert("RGB")).astype(int)

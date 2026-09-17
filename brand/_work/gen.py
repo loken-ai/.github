@@ -5,6 +5,9 @@ The mark is a token: a hexagon cut by its facets, holding a kernel at the centre
 nodes sit on the kernel's links, six green nodes on the hexagon's own vertices, and the mesh
 between them is drawn in two weights. Cyan and green on black.
 
+Three assets carry it: the icon (the mark on a square tile), the wordmark (the word alone) and
+the banner (mark, word and line on a black panel), which heads every page.
+
 The word Loken and the line under it in the lockup are traced to outlines, so no asset
 contains text or depends on a font being installed where it is displayed.
 
@@ -217,23 +220,6 @@ def wordmark_svg(night=True):
     body = f'<g transform="translate({PAD:.2f},{PAD:.2f})"><path d="{word}" fill="{ink}" fill-rule="evenodd"/></g>'
     return _svg(round(w, 2), round(h, 2), body)
 
-def lockup_svg(night=True, W=680.0, H=520.0):
-    """The full composition on a transparent ground: the token, the word, the line.
-
-    The mark keeps its colours on either ground; only the word and the line change ink."""
-    x0, y0, x1, y1 = mark_box(); mh = y1 - y0
-    cap = 44.0; word, ww = text_paths(WORD, cap)
-    sub, sw = text_paths(SUBLINE, SUB_CAP, SUB_TRACK)
-    word_gap = 58.0; sub_gap = 26.0
-    block = mh + word_gap + cap + sub_gap + SUB_CAP
-    cy = (H - block) / 2 + mh / 2; wy = cy + mh / 2 + word_gap
-    body = (f'<g transform="translate({W / 2:g},{cy:.2f})">{mark()}</g>'
-            f'<g transform="translate({(W - ww) / 2:.2f},{wy:.2f})">'
-            f'<path d="{word}" fill="{WHITE if night else "#111111"}" fill-rule="evenodd"/></g>'
-            f'<g transform="translate({(W - sw) / 2:.2f},{wy + cap + sub_gap:.2f})">'
-            f'<path d="{sub}" fill="{SUBTLE}" fill-rule="evenodd"/></g>')
-    return _svg(W, H, body)
-
 def banner_svg(W=1280.0, H=420.0, rx=24.0):
     """README header: the lockup on a black panel, wide enough to sit above a page of text.
 
@@ -272,7 +258,6 @@ def main():
     pngdir = os.path.join(BRAND, "png"); os.makedirs(pngdir, exist_ok=True)
     svgs = {"icon.svg": icon_svg(), "favicon.svg": favicon_svg(), "icon-mono.svg": mono_svg(),
             "wordmark.svg": wordmark_svg(night=False), "wordmark-dark.svg": wordmark_svg(),
-            "lockup.svg": lockup_svg(night=False), "lockup-dark.svg": lockup_svg(),
             "banner.svg": banner_svg()}
     for name, text in svgs.items(): write(os.path.join(BRAND, name), text)
     b = lambda n: os.path.join(BRAND, n); p = lambda n: os.path.join(pngdir, n)
@@ -285,9 +270,9 @@ def main():
     png(b("icon-mono.svg"), p("icon-mono-512.png"), 512)
     png(b("wordmark.svg"), p("wordmark.png"), 1120)
     png(b("wordmark-dark.svg"), p("wordmark-dark.png"), 1120)
-    png(b("lockup.svg"), p("lockup.png"), 1360)
-    png(b("lockup-dark.svg"), p("lockup-dark.png"), 1360)
     png(b("banner.svg"), p("banner.png"), 1280)
+    # published READMEs still link png/lockup.png; it carries the banner until they are pushed
+    shutil.copyfile(p("banner.png"), p("lockup.png"))
     # the org avatar: square to the edge, since GitHub applies its own crop (square, rounded,
     # circular); a rounded source would read as a double round with page-coloured corners
     avatar = os.path.join(HERE, "variants", "avatar.svg")

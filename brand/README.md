@@ -2,23 +2,21 @@
 
 **LOKEN**, from **Lo**cal + tok**en**: a local inference server for AI models.
 
-## The mark and the wordmark
-Two assets with two roles.
+## Three assets
+| Asset | What it is | Where it goes |
+|-------|------------|---------------|
+| **Icon** | The mark on a square black tile | App icon, favicon, org avatar |
+| **Wordmark** | The word *Loken* alone | Anywhere the mark is already present |
+| **Banner** | Mark, word and line on a black panel | Every page header, in either theme |
 
-- **The mark** is a token: a hexagon cut by its three facets, holding the kernel at the centre.
-  Six cyan nodes sit on the kernel's links, six green nodes on the hexagon's own vertices, and
-  a thinner mesh ties the two rings together. Cyan and green on black. It is the icon, the
-  favicon and the avatar.
-- **The wordmark** is the word *Loken*, traced to outlines.
-- **The lockup** puts the mark above the word, for page headers, with one line under the word:
-  `SELF-HOSTED MULTIMODAL INFERENCE`, what loken is in three words. Its ground is transparent;
-  the mark keeps its colours on either ground and only the word and the line change ink.
-- **The banner** is the header image: the same parts on a black panel, mark left of the word.
-  READMEs use it in both themes rather than swapping a lockup by colour scheme, because the
-  cyan of the hexagon goes pale on paper.
+The mark is a token: a hexagon cut by its three facets, holding the kernel at the centre. Six
+cyan nodes sit on the kernel's links, six green nodes on the hexagon's own vertices, and a
+thinner mesh ties the two rings together.
 
-The line belongs to the lockup; the wordmark carries the word alone. In text, always write
-**LOKEN** (and `loken` for technical names: the org, crates, repos).
+The banner carries the line `SELF-HOSTED MULTIMODAL INFERENCE`, what loken is in three words.
+It carries its own panel rather than swapping by colour scheme, because the cyan of the hexagon
+goes pale on paper. In text, always write **LOKEN** (and `loken` for technical names: the org,
+crates, repos).
 
 ## Palette
 | Role | Hex |
@@ -30,16 +28,12 @@ The line belongs to the lockup; the wordmark carries the word alone. In text, al
 | Grey: the lockup line | `#888888` |
 
 ## Files
-- `icon.svg`: the mark on the black tile
-- `favicon.svg`: full-bleed mark for small sizes
-- `icon-mono.svg`: one-ink cut
-- `wordmark.svg`, `wordmark-dark.svg`: the word, for paper and for black grounds
-- `lockup.svg`, `lockup-dark.svg`: mark, word and line, transparent, for paper and for dark
-  grounds
-- `banner.svg`: the same on a black panel, for README headers
+- `icon.svg`, `favicon.svg` (full-bleed, for small sizes), `icon-mono.svg` (one ink)
+- `wordmark.svg`, `wordmark-dark.svg`: for paper and for dark grounds
+- `banner.svg`
 - `png/`: `icon-{512,256,180,128}.png`, `favicon-{48,32,16}.png`, `favicon.ico` (16/32/48),
-  `icon-mono-512.png`, `wordmark.png`, `wordmark-dark.png`, `lockup.png`, `lockup-dark.png`,
-  `banner.png`
+  `icon-mono-512.png`, `wordmark.png`, `wordmark-dark.png`, `banner.png`; `lockup.png` is a
+  copy of the banner, kept for READMEs published before the rename
 - `png/avatar-512.png`: the **org avatar**. Square to the edge, no rounding of its own:
   GitHub puts the avatar in its own container (square, rounded, or circular depending on the
   surface), so a rounded source would read as a double round and its transparent corners would
@@ -66,5 +60,5 @@ Three things are derived rather than typed:
 
 Run `_work/verify.py` after any change: it checks that no SVG carries text or leaves the
 palette, the parts of the mark and of the reduced cut, the one-ink cut, that the wordmark holds
-the word alone, the lockup keeps a transparent ground and the banner its panel, every raster size, that the mark is centred and
+the word alone and the banner its panel, every raster size, that the mark is centred and
 survives at sixteen pixels, and that `icon-512.png` is `icon.svg` rasterised.

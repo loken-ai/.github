@@ -2,6 +2,7 @@
   ORG PROFILE - rendered at https://github.com/loken-ai
   Branding: the token mark (hexagon, facets, kernel, nodes) above the word, cyan and green on
   black. The header uses the banner, which carries its own panel and so holds in either theme.
+  Three assets only: icon, wordmark, banner.
   Full brand kit and source SVGs live in this repo under brand/. In text, write "LOKEN".
 -->
 
