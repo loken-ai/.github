@@ -234,6 +234,29 @@ def lockup_svg(night=True, W=680.0, H=520.0):
             f'<path d="{sub}" fill="{SUBTLE}" fill-rule="evenodd"/></g>')
     return _svg(W, H, body)
 
+def banner_svg(W=1280.0, H=420.0, rx=24.0):
+    """README header: the lockup on a black panel, wide enough to sit above a page of text.
+
+    The panel is what lets one image head a page in either theme; on paper the cyan of the
+    hexagon would go pale. The mark stands left of the word, on the panel's own axis."""
+    x0, y0, x1, y1 = mark_box(); mw = x1 - x0; mh = y1 - y0
+    mark_h = 260.0; s = mark_h / mh
+    cap = 54.0; word, ww = text_paths(WORD, cap)
+    sub, sw = text_paths(SUBLINE, 15.0, SUB_TRACK)
+    gap = 64.0                       # mark to word
+    block = mw * s + gap + max(ww, sw)
+    mx = (W - block) / 2 + mw * s / 2
+    tx = (W - block) / 2 + mw * s + gap
+    text_h = cap + 26.0 + 15.0
+    ty = (H - text_h) / 2
+    return _svg(W, H,
+                f'<rect x="0" y="0" width="{W:g}" height="{H:g}" rx="{rx:g}" fill="{BLACK}"/>'
+                f'<g transform="translate({mx:.2f},{H / 2:.2f}) scale({s:.4f})">{mark(weight=1 / s)}</g>'
+                f'<g transform="translate({tx:.2f},{ty:.2f})">'
+                f'<path d="{word}" fill="{WHITE}" fill-rule="evenodd"/></g>'
+                f'<g transform="translate({tx:.2f},{ty + cap + 26.0:.2f})">'
+                f'<path d="{sub}" fill="{SUBTLE}" fill-rule="evenodd"/></g>')
+
 # ---------------------------------------------------------------- rasterising
 RESVG = shutil.which("resvg")
 
@@ -249,7 +272,8 @@ def main():
     pngdir = os.path.join(BRAND, "png"); os.makedirs(pngdir, exist_ok=True)
     svgs = {"icon.svg": icon_svg(), "favicon.svg": favicon_svg(), "icon-mono.svg": mono_svg(),
             "wordmark.svg": wordmark_svg(night=False), "wordmark-dark.svg": wordmark_svg(),
-            "lockup.svg": lockup_svg(night=False), "lockup-dark.svg": lockup_svg()}
+            "lockup.svg": lockup_svg(night=False), "lockup-dark.svg": lockup_svg(),
+            "banner.svg": banner_svg()}
     for name, text in svgs.items(): write(os.path.join(BRAND, name), text)
     b = lambda n: os.path.join(BRAND, n); p = lambda n: os.path.join(pngdir, n)
     for sz in (512, 256, 180, 128): png(b("icon.svg"), p(f"icon-{sz}.png"), sz)
@@ -263,6 +287,7 @@ def main():
     png(b("wordmark-dark.svg"), p("wordmark-dark.png"), 1120)
     png(b("lockup.svg"), p("lockup.png"), 1360)
     png(b("lockup-dark.svg"), p("lockup-dark.png"), 1360)
+    png(b("banner.svg"), p("banner.png"), 1280)
     # the org avatar: square to the edge, since GitHub applies its own crop (square, rounded,
     # circular); a rounded source would read as a double round with page-coloured corners
     avatar = os.path.join(HERE, "variants", "avatar.svg")
@@ -272,8 +297,7 @@ def main():
     # the org profile renders profile/README.md, so its images sit beside it
     if os.path.isdir(PROFILE):
         shutil.copyfile(p("icon-512.png"), os.path.join(PROFILE, "icon.png"))
-        shutil.copyfile(p("lockup.png"), os.path.join(PROFILE, "lockup.png"))
-        shutil.copyfile(p("lockup-dark.png"), os.path.join(PROFILE, "lockup-dark.png"))
+        shutil.copyfile(p("banner.png"), os.path.join(PROFILE, "banner.png"))
     print("assets written: brand/, brand/png/, profile/")
 
 if __name__ == "__main__":

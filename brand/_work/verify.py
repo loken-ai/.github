@@ -68,6 +68,11 @@ check(counters["S"] == 0 and counters["C"] == 0 and counters["G"] == 0, "open ba
 check(counters["O"] == 1 and counters["D"] == 1, "closed counters are found",
       f"got O={counters['O']} D={counters['D']}")
 
+banner = ET.parse(os.path.join(B, "banner.svg")).getroot(); c = counts(banner)
+check(c["rect"] == 1 and banner.find(NS + "rect").get("fill") == gen.BLACK,
+      "banner carries the black panel a README header needs")
+check(c["path"] == 2 and c["polygon"] == 2, "banner carries the mark, the word and the line", f"got {c}")
+
 # ---- rasters: present at their sizes, centred, and the same drawing as the vector
 print("png/")
 expect = {f"icon-{s}.png": (s, s) for s in (512, 256, 180, 128)}
@@ -76,7 +81,7 @@ expect.update({"icon-mono-512.png": (512, 512), "avatar-512.png": (512, 512)})
 for f, size in expect.items():
     path = os.path.join(P, f)
     check(os.path.exists(path) and Image.open(path).size == size, f, f"expected {size}")
-for f in ("wordmark.png", "wordmark-dark.png", "lockup.png", "lockup-dark.png", "favicon.ico"):
+for f in ("wordmark.png", "wordmark-dark.png", "lockup.png", "lockup-dark.png", "banner.png", "favicon.ico"):
     check(os.path.exists(os.path.join(P, f)), f)
 
 a = np.array(Image.open(os.path.join(P, "icon-512.png")).convert("RGB")).astype(int)

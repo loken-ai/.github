@@ -1,15 +1,12 @@
 <!--
   ORG PROFILE - rendered at https://github.com/loken-ai
   Branding: the token mark (hexagon, facets, kernel, nodes) above the word, cyan and green on
-  black, on a transparent ground; the header picks the ink by colour scheme. Full brand kit and
-  source SVGs live in this repo under brand/. In text, write "LOKEN".
+  black. The header uses the banner, which carries its own panel and so holds in either theme.
+  Full brand kit and source SVGs live in this repo under brand/. In text, write "LOKEN".
 -->
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="lockup-dark.png">
-    <img src="lockup.png" alt="LOKEN" width="420">
-  </picture>
+  <img src="banner.png" alt="LOKEN" width="720">
 </p>
 
 <p align="center">
