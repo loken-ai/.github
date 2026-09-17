@@ -204,6 +204,8 @@ def main():
     png(b("icon-mono.svg"), p("icon-mono-512.png"), 512)
     png(b("wordmark.svg"), p("wordmark.png"), 1120)
     png(b("wordmark-dark.svg"), p("wordmark-dark.png"), 1120)
+    # published READMEs still link png/lockup.png; it carries the wordmark alone
+    shutil.copyfile(p("wordmark.png"), p("lockup.png"))
     # the org avatar: square to the edge, since GitHub applies its own crop (square, rounded,
     # circular); a rounded source would read as a double round with page-coloured corners
     avatar = os.path.join(HERE, "variants", "avatar.svg"); os.makedirs(os.path.dirname(avatar), exist_ok=True)

@@ -63,7 +63,9 @@ for name in ("wordmark.svg", "wordmark-dark.svg"):
     check(len(solid) == len(gen.TOKENS), f"{len(gen.TOKENS)} tokens", f"got {len(solid)}")
     check(len(lit) == 1 and solid.index(lit[0]) == gen.LIT, "exactly one lit token, the second emitted")
     check(root.find(NS + "rect") is None and "url(#t)" not in open(os.path.join(B, name)).read(), "no tile")
-check(not any("lockup" in f for f in os.listdir(B) + os.listdir(P)), "no lockup asset")
+check(not any("lockup" in f for f in os.listdir(B)), "no lockup vector")
+check(open(os.path.join(P, "lockup.png"), "rb").read() == open(os.path.join(P, "wordmark.png"), "rb").read(),
+      "png/lockup.png is the wordmark alone")
 
 # ---- rasters: present at their sizes, and the same drawing as the vector
 print("png/")

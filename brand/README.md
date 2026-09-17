@@ -28,7 +28,8 @@ org, crates, repos).
 - `icon-mono.svg`: one-ink cut; the lit token takes the same ink, without its halo
 - `wordmark.svg`, `wordmark-dark.svg`: the written word, for light and dark grounds
 - `png/`: `icon-{512,256,180,128}.png`, `favicon-{48,32,16}.png`, `favicon.ico` (16/32/48),
-  `icon-mono-512.png`, `wordmark.png`, `wordmark-dark.png`
+  `icon-mono-512.png`, `wordmark.png`, `wordmark-dark.png`; `lockup.png` is a copy of `wordmark.png`
+  for published links that still point at it
 - `png/avatar-512.png`: the **org avatar**. Square to the edge, no rounding of its own:
   GitHub puts the avatar in its own container (square, rounded, or circular depending on the
   surface), so a rounded source would read as a double round and its transparent corners would
@@ -60,5 +61,5 @@ Two things are derived rather than typed:
 
 Run `_work/verify.py` after any change: it checks that no SVG carries text, the margins and
 extent of each cut, the token count and the single lit token on the mark and the wordmark, that the wordmark has
-no tile and no lockup exists, the one-ink cut, every raster
+no tile, that no lockup vector exists and `png/lockup.png` is the wordmark, the one-ink cut, every raster
 size, that the mark survives at 16 px, and that `icon-512.png` is `icon.svg` rasterised.
