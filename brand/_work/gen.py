@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
 """LOKEN brand generator: the single source of every logo asset.
 
-The mark is a token: a hexagon cut by its facets, holding a kernel at the centre. Six cyan
-nodes sit on the kernel's links, six green nodes on the hexagon's own vertices, and the mesh
-between them is drawn in two weights. Cyan and green on black.
+The mark is an open box seen in isometry: three white faces, the floor and the two far walls,
+an outline that fades toward the back, and inside a block of eight tiles. The tile the kernel
+works on is raised and takes the mint. The box is the machine, the tiles are the work, and the
+front is open because nothing leaves and nothing is hidden.
 
-Three assets carry it: the icon (the mark on a square tile), the wordmark (the word alone) and
-the banner (mark, word and line on a black panel), which heads every page.
+The word loken is written with a broad nib, in one gesture. The line under it in the banner is
+traced from a system font to outlines, so no asset contains text or depends on a font being
+installed where it is displayed.
 
-The word Loken and the line under it in the lockup are traced to outlines, so no asset
-contains text or depends on a font being installed where it is displayed.
-
-Every shape is written once below. The SVGs are emitted from it and the PNGs are rasterised
-from those SVGs with resvg, so vector and raster cannot drift. Run from this folder:
+Everything is written once below. The SVGs are emitted from it and the PNGs are rasterised from
+those SVGs with resvg, so vector and raster cannot drift. Run from this folder:
 
     python3 gen.py      # write ../*.svg, ../png/*, ../../profile/*
 """
-import math, os, shutil, subprocess, sys
+import math, os, re, shutil, subprocess, sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
@@ -24,75 +23,173 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 BRAND = os.path.dirname(HERE)
 PROFILE = os.path.join(os.path.dirname(BRAND), "profile")
 
-CYAN = "#00FFFF"; GREEN = "#39FF14"; BLACK = "#000000"; WHITE = "#FFFFFF"
+# ---------------------------------------------------------------- palette
+FRAME = "#3B6FE0"                                   # the box outline, at the front
+TILE = ("#12A8B6", "#0C8794", "#0A6B76")            # a tile: top face, right face, left face
+KERNEL = ("#34D399", "#25B584", "#1B9068")          # the tile the kernel is working on
+WALL = "#FFFFFF"                                    # the three faces seen from inside
+TILE_EDGE = "#FFFFFF"                               # the outline of every tile
+NIGHT = "#0B1020"                                   # the ground the mark is built for
+INK_NIGHT = "#F2F4F8"; INK_PAPER = "#14161C"; SUBTLE = "#888888"
 FONT = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
 
-WORD = "Loken"
-# The line under the word in the lockup: what loken is, in three words. The wordmark carries
-# the word alone, so the line lives where the composition has room for it.
+WORD = "loken"
+# The line under the word in the banner: what loken is, in three words.
 SUBLINE = "SELF-HOSTED MULTIMODAL INFERENCE"
-SUBTLE = "#888888"
 
-# ---------------------------------------------------------------- the token mark
-# Hexagon radii, node offsets and ring radii on a grid centred at (0, 0). Everything the mark
-# draws is derived from these, so it scales as one drawing.
-HEX = (70.0, 90.0)          # half width and half height of the outer hexagon
-HEX_INNER = (60.0, 75.0)    # the inner outline, one facet inside it
-KERNEL = 16.0               # the kernel disc; its rings are fractions of it
-NODE_IN = 5.0; NODE_OUT = 6.0
-LINK_IN = [(0.0, -60.0), (45.0, -35.0), (45.0, 35.0), (0.0, 60.0), (-45.0, 35.0), (-45.0, -35.0)]
+# ---------------------------------------------------------------- the box and its tiles
+S3 = math.sqrt(3) / 2
+U = 26.0                 # one cell of the box, in drawing units
+N = 3                    # the box is N cells on a side
+LIFT = 0.22              # how far the kernel's tile stands off the block
+INSET = 0.0              # tiles touch; the white outline is what counts them
+TILE_EDGE_W = 1.1
+FRAME_W = 4.6
+FADE = 0.62              # how far the back of the box is mixed into the ground
+NEAR_CORNER = (1, 1, 1)  # the corner facing the viewer; its edges would cross the contents
+LIT = (1, 0, 1)          # which tile of the block the kernel is on
 
-def _hex(rx, ry):
-    return [(0.0, -ry), (rx, -ry / 2), (rx, ry / 2), (0.0, ry), (-rx, ry / 2), (-rx, -ry / 2)]
+CORNERS = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0), (0, 0, 1), (1, 0, 1), (1, 1, 1), (0, 1, 1)]
+EDGES = [(0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 4), (0, 4), (1, 5), (2, 6), (3, 7)]
 
-def _pts(points):
-    return " ".join(f"{x:.2f},{y:.2f}" for x, y in points)
+def iso(i, j, k):
+    """Grid to screen. Depth grows with i + j + k, which is what orders the drawing."""
+    return ((i - j) * S3 * U, (i + j) * U / 2 - k * U)
 
-def mark(edge=CYAN, node_in=CYAN, node_out=GREEN, core=GREEN, link=GREEN, mesh=CYAN,
-         halo=WHITE, detail=True, weight=1.0, boost=1.0):
-    """The mark centred on (0, 0). `detail=False` drops what a small size cannot hold: the
-    inner outline, the facets and the thin mesh. `weight` scales stroke widths only; `boost`
-    thickens strokes and nodes together, for cuts where a hairline falls under a pixel."""
-    weight = weight * boost
-    w = lambda v: f"{v * weight:.2f}"
-    v = _hex(*HEX)
-    out = [f'<polygon points="{_pts(v)}" fill="none" stroke="{edge}" stroke-width="{w(2.5)}"/>']
-    if detail:
-        out.append(f'<polygon points="{_pts(_hex(*HEX_INNER))}" fill="none" stroke="{edge}" '
-                   f'stroke-width="{w(1)}" opacity="0.3"/>')
-        for a, b in ((0, 3), (5, 2), (4, 1)):     # the three facets, vertex to opposite vertex
-            out.append(f'<line x1="{v[a][0]:.2f}" y1="{v[a][1]:.2f}" x2="{v[b][0]:.2f}" y2="{v[b][1]:.2f}" '
-                       f'stroke="{edge}" stroke-width="{w(1)}" opacity="0.2"/>')
-    out.append(f'<circle cx="0" cy="0" r="{KERNEL:.2f}" fill="{core}" opacity="0.95"/>')
-    out.append(f'<circle cx="0" cy="0" r="{KERNEL:.2f}" fill="none" stroke="{halo}" '
-               f'stroke-width="{w(2)}" opacity="0.4"/>')
-    for k, sw, op in ((0.625, 1.5, 0.7), (0.3125, 1.0, 0.5)):
-        out.append(f'<circle cx="0" cy="0" r="{KERNEL * k:.2f}" fill="none" stroke="{core}" '
-                   f'stroke-width="{w(sw)}" opacity="{op}"/>')
-    for x, y in LINK_IN:                          # kernel edge to inner node, the bold links
-        d = math.hypot(x, y); ox, oy = x / d * KERNEL, y / d * KERNEL
-        out.append(f'<line x1="{ox:.2f}" y1="{oy:.2f}" x2="{x:.2f}" y2="{y:.2f}" stroke="{link}" '
-                   f'stroke-width="{w(2)}" opacity="0.6"/>')
-    if detail:
-        for (x, y), (vx, vy) in zip(LINK_IN, v):  # inner node to the vertex it answers
-            out.append(f'<line x1="{x:.2f}" y1="{y:.2f}" x2="{vx:.2f}" y2="{vy:.2f}" stroke="{mesh}" '
-                       f'stroke-width="{w(1.5)}" opacity="0.35"/>')
-        for a, b in ((1, 5), (2, 5)):             # two chords across the token
-            out.append(f'<line x1="{LINK_IN[a][0]:.2f}" y1="{LINK_IN[a][1]:.2f}" '
-                       f'x2="{v[b][0]:.2f}" y2="{v[b][1]:.2f}" stroke="{mesh}" '
-                       f'stroke-width="{w(1.5)}" opacity="0.35"/>')
-    for x, y in LINK_IN:
-        out.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="{NODE_IN * boost:.2f}" fill="{node_in}"/>')
-    for x, y in v:
-        out.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="{NODE_OUT * boost:.2f}" fill="{node_out}"/>')
-    return "".join(out)
+def _mix(a, b, t):
+    """Colour a mixed toward colour b by t."""
+    pa = [int(a[i:i + 2], 16) for i in (1, 3, 5)]; pb = [int(b[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#%02X%02X%02X" % tuple(round(pa[m] + (pb[m] - pa[m]) * t) for m in range(3))
 
-def mark_box():
-    """Ink box of the mark: a node sits on every hexagon vertex, so the nodes set the extent."""
-    rx, ry = HEX
-    return (-rx - NODE_OUT, -ry - NODE_OUT, rx + NODE_OUT, ry + NODE_OUT)
+def _poly(pts, fill, stroke=None, sw=0.0):
+    p = " ".join(f"{x:.2f},{y:.2f}" for x, y in pts)
+    s = f' stroke="{stroke}" stroke-width="{sw:.2f}" stroke-linejoin="round"' if stroke else ""
+    return f'<polygon points="{p}" fill="{fill}"{s}/>'
 
-# ---------------------------------------------------------------- text, traced to outlines
+def walls(colour=WALL):
+    """The three faces the viewer looks at from inside: the floor and the two far walls."""
+    P = lambda i, j, k: iso(i * N, j * N, k * N)
+    faces = [[P(0, 0, 0), P(1, 0, 0), P(1, 1, 0), P(0, 1, 0)],
+             [P(0, 0, 0), P(1, 0, 0), P(1, 0, 1), P(0, 0, 1)],
+             [P(0, 0, 0), P(0, 1, 0), P(0, 1, 1), P(0, 0, 1)]]
+    return "".join(_poly(f, colour) for f in faces)
+
+def frame(ground, w=FRAME_W, fade=FADE, ink=FRAME):
+    """The box outline: one line per edge, its depth carried by the colour.
+
+    The three edges meeting the near corner are left out: they would cross the tiles. Depth is
+    mixed toward the ground rather than set as opacity, so every stroke is opaque and two edges
+    meeting at a vertex read exactly like the edges themselves."""
+    span = 3 * N; defs = []; lines = []
+    for idx, (a, b) in enumerate(EDGES):
+        A, B = CORNERS[a], CORNERS[b]
+        if NEAR_CORNER in (A, B): continue
+        pa = [c * N for c in A]; pb = [c * N for c in B]
+        p = iso(*pa); q = iso(*pb)
+        c1 = _mix(ink, ground, fade * (1 - sum(pa) / span))
+        c2 = _mix(ink, ground, fade * (1 - sum(pb) / span))
+        gid = f"e{idx}"
+        defs.append(f'<linearGradient id="{gid}" gradientUnits="userSpaceOnUse" '
+                    f'x1="{p[0]:.2f}" y1="{p[1]:.2f}" x2="{q[0]:.2f}" y2="{q[1]:.2f}">'
+                    f'<stop offset="0" stop-color="{c1}"/><stop offset="1" stop-color="{c2}"/>'
+                    f'</linearGradient>')
+        lines.append(f'<line x1="{p[0]:.2f}" y1="{p[1]:.2f}" x2="{q[0]:.2f}" y2="{q[1]:.2f}" '
+                     f'stroke="url(#{gid})" stroke-width="{w:.2f}" stroke-linecap="round"/>')
+    return "<defs>" + "".join(defs) + "</defs>", "".join(lines)
+
+def tile_faces(i, j, k, cols, inset=INSET, edge=TILE_EDGE, sw=TILE_EDGE_W):
+    """One tile as its three visible faces, each carrying its own depth."""
+    a = inset; b = 1 - inset
+    P = lambda di, dj, dk: iso(i + a + (b - a) * di, j + a + (b - a) * dj, k + a + (b - a) * dk)
+    top = [P(0, 0, 1), P(1, 0, 1), P(1, 1, 1), P(0, 1, 1)]
+    right = [P(1, 0, 1), P(1, 0, 0), P(1, 1, 0), P(1, 1, 1)]
+    left = [P(0, 1, 1), P(1, 1, 1), P(1, 1, 0), P(0, 1, 0)]
+    d = i + j + k
+    return [(d + 1.5, _poly(top, cols[0], edge, sw)), (d + 1.42, _poly(right, cols[1], edge, sw)),
+            (d + 1.4, _poly(left, cols[2], edge, sw))]
+
+def mark(ground=NIGHT, n=2, frame_w=FRAME_W, edge_w=TILE_EDGE_W, one_ink=None):
+    """The whole mark, drawn far to near. `one_ink` flattens it to a single colour."""
+    if one_ink:
+        wall_c = "#FFFFFF"; tile_c = (one_ink, one_ink, one_ink); kern_c = (one_ink,) * 3
+        frame_defs, frame_art = "", "".join(
+            f'<line x1="{iso(*[c * N for c in CORNERS[a]])[0]:.2f}" y1="{iso(*[c * N for c in CORNERS[a]])[1]:.2f}" '
+            f'x2="{iso(*[c * N for c in CORNERS[b]])[0]:.2f}" y2="{iso(*[c * N for c in CORNERS[b]])[1]:.2f}" '
+            f'stroke="{one_ink}" stroke-width="{frame_w:.2f}" stroke-linecap="round"/>'
+            for a, b in EDGES if NEAR_CORNER not in (CORNERS[a], CORNERS[b]))
+        edge_c = "#FFFFFF"
+    else:
+        wall_c = WALL; tile_c = TILE; kern_c = KERNEL; edge_c = TILE_EDGE
+        frame_defs, frame_art = frame(ground, frame_w)
+    prims = []
+    off = (N - n) / 2
+    for i in range(n):
+        for j in range(n):
+            for k in range(n):
+                lit = (i, j, k) == LIT
+                prims += tile_faces(i + off, j + off, k + off + (LIFT if lit else 0),
+                                    kern_c if lit else tile_c, edge=edge_c, sw=edge_w)
+    prims.sort(key=lambda p: p[0])
+    art = walls(wall_c) + frame_art + "".join(s for _, s in prims)
+    pts = [iso(i * N, j * N, k * N) for i in (0, 1) for j in (0, 1) for k in (0, 1)]
+    xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
+    pad = frame_w / 2
+    return frame_defs, art, (min(xs) - pad, min(ys) - pad, max(xs) + pad, max(ys) + pad)
+
+# ---------------------------------------------------------------- the written word
+NIB_ANGLE = -38.0        # the nib edge, fixed for the whole word so the ink shares one hand
+HAIRLINE = 0.22          # thinnest stroke as a fraction of the nib width
+NIB = 10.0
+WORD_PATH = ("M0,98 C14,94 30,70 36,42 C40,20 34,6 28,10 C20,16 20,50 24,80 C26,96 34,102 44,98 "
+             "C50,95 54,90 58,84 C60,70 70,60 80,60 C92,60 96,76 92,88 C88,100 72,102 68,92 "
+             "C64,82 70,64 84,62 C92,62 98,66 104,68 C112,50 116,24 116,12 C116,2 106,4 106,18 "
+             "C106,40 106,70 106,100 C106,86 110,66 124,64 C136,62 136,78 116,82 C128,84 132,98 142,99 "
+             "C150,100 160,90 166,84 C172,80 184,74 180,66 C176,58 158,64 158,84 C158,100 176,102 186,94 "
+             "C190,88 194,74 196,62 C196,76 196,90 196,100 C198,80 204,62 218,62 C232,62 230,80 230,96 "
+             "C231,102 238,102 244,96")
+
+def _cubics(d):
+    nums = [float(v) for v in re.findall(r"-?\d+\.?\d*", d)]
+    cur = (nums[0], nums[1]); out = []
+    for i in range(2, len(nums), 6):
+        p1, p2, p3 = (nums[i], nums[i + 1]), (nums[i + 2], nums[i + 3]), (nums[i + 4], nums[i + 5])
+        out.append((cur, p1, p2, p3)); cur = p3
+    return out
+
+def _samples(d, step=1.2):
+    pts = []
+    for p0, p1, p2, p3 in _cubics(d):
+        est = math.dist(p0, p1) + math.dist(p1, p2) + math.dist(p2, p3)
+        n = max(4, int(est / step))
+        for k in range(0 if not pts else 1, n + 1):
+            t = k / n; u = 1 - t
+            pts.append((u**3 * p0[0] + 3*u*u*t * p1[0] + 3*u*t*t * p2[0] + t**3 * p3[0],
+                        u**3 * p0[1] + 3*u*u*t * p1[1] + 3*u*t*t * p2[1] + t**3 * p3[1]))
+    return pts
+
+def _nib_quads(d, width, angle=NIB_ANGLE):
+    """The ink a broad nib leaves along a path, as quads wound the same way: a nonzero fill of
+    them paints their union, with no boolean operation."""
+    a = math.radians(angle); h = width / 2
+    vx, vy = h * math.cos(a), h * math.sin(a)
+    pts = _samples(d); quads = []
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        q = [(x0 - vx, y0 - vy), (x1 - vx, y1 - vy), (x1 + vx, y1 + vy), (x0 + vx, y0 + vy)]
+        area = sum(q[m][0] * q[(m + 1) % 4][1] - q[(m + 1) % 4][0] * q[m][1] for m in range(4))
+        quads.append(q if area > 0 else q[::-1])
+    return quads
+
+def written(ink, cap, nib=NIB):
+    """The word at cap height `cap`: (svg, width, height). A narrow crossing nib keeps the
+    hairlines from vanishing."""
+    quads = _nib_quads(WORD_PATH, nib) + _nib_quads(WORD_PATH, nib * HAIRLINE, NIB_ANGLE + 90)
+    xs = [x for q in quads for x, _ in q]; ys = [y for q in quads for _, y in q]
+    x0, y0, x1, y1 = min(xs), min(ys), max(xs), max(ys)
+    s = cap / (y1 - y0)
+    d = "".join("M" + " ".join(f"{(x - x0) * s:.2f},{(y - y0) * s:.2f}" for x, y in q) + "Z" for q in quads)
+    return f'<path d="{d}" fill="{ink}" fill-rule="nonzero"/>', (x1 - x0) * s, cap
+
+# ---------------------------------------------------------------- the line, traced to outlines
 def _mask(ch, px):
     f = ImageFont.truetype(FONT, px)
     im = Image.new("L", (px * 2, int(px * 2.4)), 0)
@@ -100,7 +197,6 @@ def _mask(ch, px):
     return np.array(im) > 128
 
 def _spread(seed, allowed):
-    """Grow `seed` through `allowed` over the eight neighbours, until it stops growing."""
     cur = seed & allowed
     while True:
         g = cur.copy()
@@ -115,11 +211,9 @@ def _spread(seed, allowed):
 def _holes(mask):
     """Counters of a glyph: background the outside cannot reach, one array per counter.
 
-    Reachability is decided by growing the background in from the border, not by ink on four
-    sides: the open bay of an S, a C or a G has ink on four sides and is not a counter. The
-    background spreads over the eight neighbours, since a diagonal pair of ink pixels would
-    otherwise seal a bay that the glyph leaves open. The work is done on the glyph's own box,
-    padded by one pixel, which is what keeps it cheap."""
+    The background spreads over the eight neighbours, since a diagonal pair of ink pixels would
+    otherwise seal a bay that the glyph leaves open: the open bay of an S, a C or a G has ink on
+    four sides and is not a counter."""
     ys, xs = np.where(mask)
     y0, y1, x0, x1 = ys.min() - 1, ys.max() + 2, xs.min() - 1, xs.max() + 2
     box = mask[y0:y1, x0:x1]; bg = ~box
@@ -135,7 +229,6 @@ def _holes(mask):
     return out
 
 def _trace(mask):
-    """Moore boundary of the shape in the mask, as pixel coordinates."""
     P = np.pad(mask, 1); ys, xs = np.where(P); y0 = ys.min(); x0 = int(xs[ys == y0].min())
     nb = [(0, -1), (-1, -1), (-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1)]
     start = (y0, x0); cur = start; back = (y0, x0 - 1); cont = [start]
@@ -159,12 +252,9 @@ def _simplify(pts, eps):
     return [pts[0], pts[-1]]
 
 def text_paths(text, cap, tracking=0.0, px=320, eps=0.5):
-    """`text` as outline subpaths at cap height `cap`, `tracking` in units of cap height.
-
-    Returns (path data, advance width). Letters sit on the font's own advances; tracing to
-    outlines is what frees every asset from needing the font installed."""
+    """`text` as outline subpaths at cap height `cap`, `tracking` in units of cap height."""
     f = ImageFont.truetype(FONT, px)
-    ref = _mask("H", px); rys = np.where(ref.any(axis=1))[0]
+    rys = np.where(_mask("H", px).any(axis=1))[0]
     s = cap / (rys.max() - rys.min()); top = rys.min()
     x = 0.0; subs = []
     for ch in text:
@@ -179,6 +269,8 @@ def text_paths(text, cap, tracking=0.0, px=320, eps=0.5):
     return " ".join(subs), x - tracking * cap
 
 # ---------------------------------------------------------------- assets
+SUB_CAP = 15.0; SUB_TRACK = 0.18
+
 def _svg(w, h, body, background=None):
     bg = f'<rect width="{w:g}" height="{h:g}" fill="{background}"/>' if background else ""
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:g} {h:g}" width="{w:g}" '
@@ -186,65 +278,60 @@ def _svg(w, h, body, background=None):
 
 # the tile runs 4..124 on the 128 grid, full-bleed cuts 0..128; the extent is the mark's larger
 # side, centred on the tile centre, so the four margins are equal by construction
-EXTENT_TILE = 104.0; EXTENT_BLEED = 116.0
-FAVICON_BOOST = 2.4      # stroke and node scale for the 16 px cut
+EXTENT_TILE = 100.0; EXTENT_BLEED = 112.0
 
-def _fit(extent, detail=True, boost=1.0, **colours):
-    x0, y0, x1, y1 = mark_box(); s = extent / max(x1 - x0, y1 - y0)
-    # strokes are divided back out by the scale, so a line keeps its weight at any tile size
-    return (f'<g transform="translate(64,64) scale({s:.4f})">'
-            f'{mark(detail=detail, weight=1 / s, boost=boost, **colours)}</g>')
+def _fit(extent, ground=NIGHT, **kw):
+    defs, art, box = mark(ground=ground, **kw)
+    bw = box[2] - box[0]; bh = box[3] - box[1]; s = extent / max(bw, bh)
+    cx = (box[0] + box[2]) / 2; cy = (box[1] + box[3]) / 2
+    return defs + (f'<g transform="translate(64,64) scale({s:.4f}) '
+                   f'translate({-cx:.2f},{-cy:.2f})">{art}</g>')
 
 def icon_svg():
-    return _svg(128, 128, f'<rect x="4" y="4" width="120" height="120" rx="28" fill="{BLACK}"/>'
+    return _svg(128, 128, f'<rect x="4" y="4" width="120" height="120" rx="28" fill="{NIGHT}"/>'
                 + _fit(EXTENT_TILE))
 
 def favicon_svg(rx=26, boost=1.0):
-    """Small sizes: the faint outline, facets and mesh would turn to mud, so they are dropped."""
-    return _svg(128, 128, f'<rect x="0" y="0" width="128" height="128" rx="{rx}" fill="{BLACK}"/>'
-                + _fit(EXTENT_BLEED, detail=False, boost=boost))
+    """Small sizes: the tile outlines and the box edges thicken, or they fall under a pixel."""
+    return _svg(128, 128, f'<rect x="0" y="0" width="128" height="128" rx="{rx}" fill="{NIGHT}"/>'
+                + _fit(EXTENT_BLEED, frame_w=FRAME_W * boost, edge_w=TILE_EDGE_W * boost))
 
 def mono_svg():
-    """One ink: every stroke and node in a single colour, the kernel read by its rings."""
-    return _svg(128, 128, _fit(EXTENT_TILE, edge=BLACK, node_in=BLACK, node_out=BLACK,
-                               core=BLACK, link=BLACK, mesh=BLACK, halo=WHITE))
+    """One ink: the box and the tiles in a single colour, told apart by their white outlines."""
+    return _svg(128, 128, _fit(EXTENT_TILE, one_ink="#14161C"))
 
-WORD_CAP = 72.0; PAD = 28.0
-SUB_CAP = 13.0; SUB_TRACK = 0.18      # the lockup line: cap height and tracking, in cap units
+WORD_CAP = 96.0; PAD = 28.0
 
-def wordmark_svg(night=True):
-    """The word alone, without the mark: ink for paper, white for black grounds."""
-    ink = WHITE if night else "#111111"
-    word, ww = text_paths(WORD, WORD_CAP)
-    w = ww + 2 * PAD; h = WORD_CAP + 2 * PAD
-    body = f'<g transform="translate({PAD:.2f},{PAD:.2f})"><path d="{word}" fill="{ink}" fill-rule="evenodd"/></g>'
-    return _svg(round(w, 2), round(h, 2), body)
+def wordmark_svg(night=False):
+    ink = INK_NIGHT if night else INK_PAPER
+    word, ww, wh = written(ink, WORD_CAP)
+    w = ww + 2 * PAD; h = wh + 2 * PAD
+    return _svg(round(w, 2), round(h, 2),
+                f'<g transform="translate({PAD:.2f},{PAD:.2f})">{word}</g>')
 
 def banner_svg(W=1280.0, H=420.0, rx=24.0):
-    """README header: the lockup on a black panel, wide enough to sit above a page of text.
-
-    The panel is what lets one image head a page in either theme; on paper the cyan of the
-    hexagon would go pale. The mark stands left of the word, on the panel's own axis."""
-    x0, y0, x1, y1 = mark_box(); mw = x1 - x0; mh = y1 - y0
-    mark_h = 260.0; s = mark_h / mh
-    cap = 54.0; word, ww = text_paths(WORD, cap)
-    sub, sw = text_paths(SUBLINE, 15.0, SUB_TRACK)
-    gap = 64.0                       # mark to word
-    block = mw * s + gap + max(ww, sw)
-    mx = (W - block) / 2 + mw * s / 2
-    tx = (W - block) / 2 + mw * s + gap
-    text_h = cap + 26.0 + 15.0
-    ty = (H - text_h) / 2
-    return _svg(W, H,
-                f'<rect x="0" y="0" width="{W:g}" height="{H:g}" rx="{rx:g}" fill="{BLACK}"/>'
-                f'<g transform="translate({mx:.2f},{H / 2:.2f}) scale({s:.4f})">{mark(weight=1 / s)}</g>'
-                f'<g transform="translate({tx:.2f},{ty:.2f})">'
-                f'<path d="{word}" fill="{WHITE}" fill-rule="evenodd"/></g>'
-                f'<g transform="translate({tx:.2f},{ty + cap + 26.0:.2f})">'
+    """The header image: mark, written word and line on the dark ground the mark is built for."""
+    defs, art, box = mark(ground=NIGHT)
+    bw = box[2] - box[0]; bh = box[3] - box[1]; s = 280.0 / max(bw, bh)
+    cx = (box[0] + box[2]) / 2; cy = (box[1] + box[3]) / 2
+    word, ww, wh = written(INK_NIGHT, 104.0)
+    sub, sw = text_paths(SUBLINE, SUB_CAP, SUB_TRACK)
+    gap = 64.0; sub_gap = 30.0
+    block = bw * s + gap + max(ww, sw)
+    mx = (W - block) / 2 + bw * s / 2
+    tx = (W - block) / 2 + bw * s + gap
+    ty = (H - (wh + sub_gap + SUB_CAP)) / 2
+    return _svg(W, H, defs +
+                f'<rect x="0" y="0" width="{W:g}" height="{H:g}" rx="{rx:g}" fill="{NIGHT}"/>'
+                f'<g transform="translate({mx:.2f},{H / 2:g}) scale({s:.4f}) '
+                f'translate({-cx:.2f},{-cy:.2f})">{art}</g>'
+                f'<g transform="translate({tx:.2f},{ty:.2f})">{word}</g>'
+                f'<g transform="translate({tx:.2f},{ty + wh + sub_gap:.2f})">'
                 f'<path d="{sub}" fill="{SUBTLE}" fill-rule="evenodd"/></g>')
 
 # ---------------------------------------------------------------- rasterising
 RESVG = shutil.which("resvg")
+FAVICON_BOOST = 1.8      # stroke scale for the smallest cut
 
 def png(svg_path, out, width):
     if RESVG is None:
@@ -257,29 +344,27 @@ def write(path, text):
 def main():
     pngdir = os.path.join(BRAND, "png"); os.makedirs(pngdir, exist_ok=True)
     svgs = {"icon.svg": icon_svg(), "favicon.svg": favicon_svg(), "icon-mono.svg": mono_svg(),
-            "wordmark.svg": wordmark_svg(night=False), "wordmark-dark.svg": wordmark_svg(),
+            "wordmark.svg": wordmark_svg(), "wordmark-dark.svg": wordmark_svg(night=True),
             "banner.svg": banner_svg()}
     for name, text in svgs.items(): write(os.path.join(BRAND, name), text)
     b = lambda n: os.path.join(BRAND, n); p = lambda n: os.path.join(pngdir, n)
     for sz in (512, 256, 180, 128): png(b("icon.svg"), p(f"icon-{sz}.png"), sz)
     for sz in (48, 32): png(b("favicon.svg"), p(f"favicon-{sz}.png"), sz)
-    # at the smallest cut a hairline falls under a pixel, so it is drawn from a thicker cut
-    tiny = os.path.join(HERE, "variants", "favicon-tiny.svg")
-    os.makedirs(os.path.dirname(tiny), exist_ok=True)
-    write(tiny, favicon_svg(boost=FAVICON_BOOST)); png(tiny, p("favicon-16.png"), 16)
     png(b("icon-mono.svg"), p("icon-mono-512.png"), 512)
     png(b("wordmark.svg"), p("wordmark.png"), 1120)
     png(b("wordmark-dark.svg"), p("wordmark-dark.png"), 1120)
     png(b("banner.svg"), p("banner.png"), 1280)
-    # published READMEs still link png/lockup.png; it carries the banner until they are pushed
+    # published READMEs still link png/lockup.png; it carries the banner
     shutil.copyfile(p("banner.png"), p("lockup.png"))
+    scratch = os.path.join(HERE, "variants"); os.makedirs(scratch, exist_ok=True)
+    # at the smallest cut a hairline falls under a pixel, so it is drawn from a thicker one
+    tiny = os.path.join(scratch, "favicon-tiny.svg")
+    write(tiny, favicon_svg(boost=FAVICON_BOOST)); png(tiny, p("favicon-16.png"), 16)
     # the org avatar: square to the edge, since GitHub applies its own crop (square, rounded,
     # circular); a rounded source would read as a double round with page-coloured corners
-    avatar = os.path.join(HERE, "variants", "avatar.svg")
-    os.makedirs(os.path.dirname(avatar), exist_ok=True)
+    avatar = os.path.join(scratch, "avatar.svg")
     write(avatar, favicon_svg(rx=0)); png(avatar, p("avatar-512.png"), 512)
     Image.open(p("favicon-48.png")).save(p("favicon.ico"), sizes=[(16, 16), (32, 32), (48, 48)])
-    # the org profile renders profile/README.md, so its images sit beside it
     if os.path.isdir(PROFILE):
         shutil.copyfile(p("icon-512.png"), os.path.join(PROFILE, "icon.png"))
         shutil.copyfile(p("banner.png"), os.path.join(PROFILE, "banner.png"))
