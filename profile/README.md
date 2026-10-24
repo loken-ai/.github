@@ -19,7 +19,7 @@
 
 ## What is LOKEN?
 
-**LOKEN** — from **Lo**cal + tok**en** — is a local-first, multimodal AI stack written from
+**LOKEN** — from **Lo**cal + to**ken** — is a local-first, multimodal AI stack written from
 the ground up in Rust. No Python at runtime, no framework underneath.
 
 One server speaks the **OpenAI- and Ollama-compatible** APIs across every modality:
