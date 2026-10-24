@@ -28,11 +28,17 @@ One server speaks the **OpenAI- and Ollama-compatible** APIs across every modali
 - **Vision** — image understanding
 - **Speech** — text-to-speech and transcription
 - **Generative media** — image, audio/music, video, symbolic MIDI
+- **Forecasting** — time-series forecasts from pretrained models
+
+It runs on **NVIDIA** cards through CUDA, **AMD** cards through ROCm, any card with a Vulkan
+driver (dense language models), **Intel** GPUs through OpenCL, and on the CPU. One binary
+drives NVIDIA and AMD cards together.
 
 It is **private**: it runs on your hardware and calls nothing out.
 
 It is **measured**: every performance claim comes from a run against llama.cpp, Ollama or vLLM
-— same prompts, same clock — and the cells where LOKEN loses are published with the rest.
+— same prompts, same clock, one page per card and per backend — and the cells where LOKEN loses
+are published with the rest.
 
 ## Why it exists
 
@@ -87,8 +93,12 @@ Some of it works. Some is half-built. Some will not survive contact with measure
 - **Clustering** — spreading work across more than one machine, and deciding per request
   whether a second node earns the hop it costs. A single request never gets faster because a
   peer exists; what a peer buys is served requests per second.
-- **Vulkan and ROCm** — CUDA and OpenCL are covered today, which leaves out a lot of the
-  hardware people actually own.
+- **Every backend at the speed of the best one** — ROCm, Vulkan and OpenCL run today. Vulkan
+  is not yet as fast as CUDA and ROCm on the same card, and OpenCL is not yet faster than the
+  CPU. Each backend is measured against the reference engine on the same card, and the gaps are
+  published.
+- **Serving more at once** — throughput serving, speculation for every model, and a coding-agent
+  setup for very large mixture-of-experts models whose weights stream from disk.
 - **Energy as a target, not a report** — joules per token is already measured. The open
   question is which placement decisions can be made *from* it rather than judged by it.
 
@@ -99,10 +109,11 @@ Being split out of a single working tree. Names without a link have not landed y
 | Repo | What it is |
 |------|------------|
 | [**loken**](https://github.com/loken-ai/loken) | The inference **server** — engine, tensor substrate, every modality |
-| [**atlas**](https://github.com/loken-ai/atlas) | Watches a loken cluster: the living map, a doctor for what it swallows in silence, an OpenMetrics exporter |
-| [**verve**](https://github.com/loken-ai/verve) | A local-first terminal coding agent |
-| [**atelier**](https://github.com/loken-ai/atelier) | The desktop client: a chat window, and a studio for image, audio, speech and video generation |
-| [**assay**](https://github.com/loken-ai/assay) | Benchmarks one local inference server against another, and ships the protocol that makes the comparison fair |
+| [**lokpit**](https://github.com/loken-ai/lokpit) | Watches a loken cluster: the living map, a doctor for what it swallows in silence, an OpenMetrics exporter |
+| [**lokode**](https://github.com/loken-ai/lokode) | A local-first terminal coding agent |
+| [**lokraft**](https://github.com/loken-ai/lokraft) | The desktop client: a chat window, and a studio for image, audio, speech and video generation |
+| [**lokprof**](https://github.com/loken-ai/lokprof) | Benchmarks one local inference server against another, and ships the protocol that makes the comparison fair |
+| **benchmarks** | The measured runs of every machine that ran the campaign, and the site built from them |
 | [**cudarc**](https://github.com/loken-ai/cudarc) | The local delta over [cudarc](https://github.com/chelsea0x3b/cudarc) — kept only until the patches are upstream |
 
 ## Status
