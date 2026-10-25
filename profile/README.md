@@ -104,16 +104,14 @@ Some of it works. Some is half-built. Some will not survive contact with measure
 
 ## Repositories
 
-Being split out of a single working tree. Names without a link have not landed yet.
-
 | Repo | What it is |
 |------|------------|
 | [**loken**](https://github.com/loken-ai/loken) | The inference **server** — engine, tensor substrate, every modality |
 | [**lokpit**](https://github.com/loken-ai/lokpit) | Watches a loken cluster: the living map, a doctor for what it swallows in silence, an OpenMetrics exporter |
 | [**lokode**](https://github.com/loken-ai/lokode) | A local-first terminal coding agent |
 | [**lokraft**](https://github.com/loken-ai/lokraft) | The desktop client: a chat window, and a studio for image, audio, speech and video generation |
-| [**lokprof**](https://github.com/loken-ai/lokprof) | Benchmarks one local inference server against another, and ships the protocol that makes the comparison fair |
-| **benchmarks** | The measured runs of every machine that ran the campaign, and the site built from them |
+| [**lokprof**](https://github.com/loken-ai/lokprof) | Measures one local inference server against another, the tool the campaign drives |
+| [**benchmarks**](https://github.com/loken-ai/benchmarks) | The bench campaign of loken, and the [measured runs](https://loken-ai.github.io/benchmarks/) of every machine that ran it |
 | [**cudarc**](https://github.com/loken-ai/cudarc) | The local delta over [cudarc](https://github.com/chelsea0x3b/cudarc) — kept only until the patches are upstream |
 
 ## Status
