@@ -83,8 +83,7 @@ intentions are not a guarantee.
 all — open an issue.** It will be attributed or removed, promptly and without argument.
 
 And the other direction is open: if anything here is useful to the projects it learned from,
-take it. No attribution needed. The cudarc patches already ship with their route upstream
-written down.
+take it. No attribution needed.
 
 ## What is being tried
 
@@ -112,7 +111,6 @@ Some of it works. Some is half-built. Some will not survive contact with measure
 | [**lokraft**](https://github.com/loken-ai/lokraft) | The desktop client: a chat window, and a studio for image, audio, speech and video generation |
 | [**lokprof**](https://github.com/loken-ai/lokprof) | Measures one local inference server against another, the tool the campaign drives |
 | [**benchmarks**](https://github.com/loken-ai/benchmarks) | The bench campaign of loken, and the [measured runs](https://loken-ai.github.io/benchmarks/) of every machine that ran it |
-| [**cudarc**](https://github.com/loken-ai/cudarc) | The local delta over [cudarc](https://github.com/chelsea0x3b/cudarc) — kept only until the patches are upstream |
 
 ## Status
 
