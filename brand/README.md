@@ -10,7 +10,7 @@
 | **Banner** | Mark, word and line on a dark panel | Every page header, in either theme |
 
 The mark is an open box seen in isometry: the floor and the two far walls are white, the
-outline fades toward the back, and the front is left open. Inside sits a block of 8 tiles, grown to fill the box,
+outline fades toward the back, and the front is left open. Inside sits a block of 8 tiles,
 and the tile the kernel is working on stands raised and takes the mint. The box is the machine,
 the tiles are the work, and nothing crosses the boundary.
 
@@ -34,10 +34,10 @@ set in geometric capitals: the line belongs to the mark, not to the writing.
 | The banner line | `#888888` |
 
 ## Files
-- `icon.svg`, `favicon.svg` (full-bleed, for small sizes), `icon-mono.svg` (one ink)
+- `icon.svg`, `favicon.svg` (full-bleed, the cut for 64, 48 and 32 px), `icon-mono.svg` (one ink)
 - `wordmark.svg`, `wordmark-dark.svg`: the written word, for paper and for dark grounds
 - `banner.svg`
-- `png/`: `icon-{512,256,180,128}.png`, `favicon-{48,32,16}.png`, `favicon.ico` (16/32/48),
+- `png/`: `icon-{512,256,180,128}.png`, `favicon-{64,48,32,16}.png`, `favicon.ico` (16/32/48),
   `icon-mono-512.png`, `wordmark.png`, `wordmark-dark.png`, `banner.png`; `lockup.png` is a
   copy of the banner, kept for READMEs published before the rename
 - `png/avatar-512.png`: the **org avatar**. Square to the edge, no rounding of its own:
@@ -65,11 +65,22 @@ Each component wears the mark of the server with 2 changes.
 
 A hue is the hue of the original colour turned to the angle, with its lightness and saturation kept.
 
-The favicon of a component is a separate flat drawing. A solid hexagon in the hue carries the glyph cut out in the ground colour. The favicon of loken is a flat cube, its 3 faces in the tile colours and the kernel's tile on top. The isometric mark loses its glyph below 32 px, and the flat one keeps it down to 16 px.
+## 3 cuts by size
+The mark is drawn 3 ways, and each size takes the cut that reads best.
 
-Files, in `components/`: `<name>.svg`, `<name>-favicon.svg`, and in `components/png/` the icons at 512, 256 and 128 px and the favicons at 48, 32 and 16 px. `components/loken.svg` is `icon.svg`.
+| Size | Cut |
+|------|-----|
+| 128 px and above | The icon. The block at its first size, with air around it. |
+| 64, 48 and 32 px | The small cut. Full-bleed, the block grown to 1.3 times its size about the centre of the box, thicker lines. |
+| 16 px | The flat cut. No isometry. |
 
-The block of the server mark is drawn at 1.3 times its first size about the centre of the box. That is the largest size that stays inside the outline, and `BLOCK_SCALE` in `gen.py` holds it.
+The block grows to 1.3 because that is the largest size that stays inside the outline. `SMALL_SCALE` in `gen.py` holds it.
+
+The flat cut of a component is a solid hexagon in the hue with the glyph cut out in the ground colour. The flat cut of loken is a cube, its 3 faces in the tile colours and the kernel's tile on top. The glyph does not survive in the isometric cut at 16 px, and it does in the flat one.
+
+The `.ico` holds the 16, 32 and 48 px cuts, none scaled from another.
+
+Files, in `components/`: `<name>.svg`, `<name>-small.svg` and `<name>-tiny.svg`. In `components/png/` the icons at 512, 256 and 128 px, the small cuts at 64, 48 and 32 px, and the flat cut at 16 px. `components/loken.svg` is `icon.svg` and `components/loken-small.svg` is `favicon.svg`.
 
 ## Generating
 `_work/gen.py` is the single source: `python3 gen.py`. The box, its tiles and the written word
@@ -105,8 +116,9 @@ have one), and two properties of the drawing measured on the render itself:
   darker than the edges meeting there.
 
 For each component it also checks:
-- the enlarged block, raised tile included, stays inside the box
+- the block, raised tile included, stays inside the box at both of its sizes
 - the icon has 3 walls, 8 tiles, 9 edges, one screen and one raised tile in the hue
 - its flat fills stay in the palette and the mark is centred on the tile
-- the favicon is flat and survives at 16 px with its glyph cut out
-- the 7 favicons differ from each other at 16 px
+- the small cut keeps the block inside the box, and its depth is measured on the render
+- the flat cut is flat and survives at 16 px with its glyph cut out
+- the 7 cuts differ from each other at 16 and 32 px, counted in pixels that differ clearly

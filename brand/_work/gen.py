@@ -42,7 +42,9 @@ S3 = math.sqrt(3) / 2
 U = 26.0                 # one cell of the box, in drawing units
 N = 3                    # the box is N cells on a side
 LIFT = 0.22              # how far the kernel's tile stands off the block
-BLOCK_SCALE = 1.3        # the block grows about the centre of the box: 1.3 fills it, 1.45 crosses the outline
+BLOCK_SCALE = 1.0        # the block at its first size, for 128 px and above
+SMALL_SCALE = 1.3        # the block grown about the centre of the box, for 64 px and below:
+                         # 1.3 fills the box, 1.45 crosses the outline
 INSET = 0.0              # tiles touch; the white outline is what counts them
 TILE_EDGE_W = 1.1
 FRAME_W = 4.6
@@ -113,7 +115,8 @@ def mark(ground=NIGHT, n=2, frame_w=FRAME_W, edge_w=TILE_EDGE_W, one_ink=None,
          scale=BLOCK_SCALE, kernel=KERNEL, frame_ink=FRAME, face=None):
     """The whole mark, drawn far to near. `one_ink` flattens it to a single colour.
 
-    The block is drawn at `scale` about the centre of the box. A component mark passes `kernel`
+    The block is drawn at `scale` about the centre of the box: `BLOCK_SCALE` for the icon and
+    `SMALL_SCALE` for the cut that serves 64 px and below. A component mark passes `kernel`
     and `frame_ink` to take its hue, and `face`, a function of the scale, for what is drawn on
     the block. The defaults give the mark of the server."""
     if one_ink:
@@ -302,10 +305,13 @@ def icon_svg():
     return _svg(128, 128, f'<rect x="4" y="4" width="120" height="120" rx="28" fill="{NIGHT}"/>'
                 + _fit(EXTENT_TILE))
 
-def favicon_svg(rx=26, boost=1.0):
-    """Small sizes: the tile outlines and the box edges thicken, or they fall under a pixel."""
+SMALL_BOOST = 1.3        # stroke scale of the cut for 64, 48 and 32 px
+
+def favicon_svg(rx=26, boost=SMALL_BOOST, scale=SMALL_SCALE):
+    """The cut for 64, 48 and 32 px: the block grows to fill the box and the tile outlines and
+    the box edges thicken, or they fall under a pixel."""
     return _svg(128, 128, f'<rect x="0" y="0" width="128" height="128" rx="{rx}" fill="{NIGHT}"/>'
-                + _fit(EXTENT_BLEED, frame_w=FRAME_W * boost, edge_w=TILE_EDGE_W * boost))
+                + _fit(EXTENT_BLEED, frame_w=FRAME_W * boost, edge_w=TILE_EDGE_W * boost, scale=scale))
 
 def mono_svg():
     """One ink: the box and the tiles in a single colour, told apart by their white outlines."""
@@ -344,10 +350,13 @@ def banner_svg(W=1280.0, H=420.0, rx=24.0):
 # ---------------------------------------------------------------- the components
 # Each component wears the mark of the server with 2 changes: the frame and the raised tile take
 # its hue, and the big left face of the block becomes a dark screen carrying its glyph, laid in
-# the plane of the face. Glyphs are strokes in a box of +-10 units.
+# the plane of the face. Glyphs are strokes in a box of +-10 units. It comes in 3 cuts like the
+# server: the icon, the small cut for 64 px and below, and a flat one for 16 px.
 SCREEN = "#06323A"       # the screen on the left face of the block
 FACE_GLYPH = 0.85        # half the glyph box, in cells of the block
 FACE_STROKE = 2.6        # glyph stroke, in glyph units
+SMALL_GLYPH = 0.9        # the glyph of the small cut is larger and heavier
+SMALL_STROKE = 4.2
 FLAT_HEX = 57.0          # radius of the hexagon of the flat favicon
 FLAT_SCALE = 3.1         # glyph units to favicon units
 FLAT_STROKE = 4.8
@@ -376,15 +385,15 @@ def component_colours(name):
     if hue is None: return KERNEL, FRAME
     return tuple(hue_of(c, hue) for c in KERNEL), hue_of(FRAME, hue)
 
-def screen(name, ink, scale):
+def screen(name, ink, scale, edge=TILE_EDGE_W, half=FACE_GLYPH, stroke=FACE_STROKE):
     """The left face of the block as one dark panel, and the glyph of `name` laid on it."""
     panel = _poly([iso(LO, HI, HI), iso(HI, HI, HI), iso(HI, HI, LO), iso(LO, HI, LO)],
-                  SCREEN, TILE_EDGE, TILE_EDGE_W / scale)
+                  SCREEN, TILE_EDGE, edge / scale)
     o = iso(N / 2, HI, N / 2); ex = iso(1, HI, 0); e0 = iso(0, HI, 0); ey = iso(0, HI, -1)
-    f = FACE_GLYPH / 10
+    f = half / 10
     m = ((ex[0] - e0[0]) * f, (ex[1] - e0[1]) * f, (ey[0] - e0[0]) * f, (ey[1] - e0[1]) * f, o[0], o[1])
     return (panel + f'<g transform="matrix({",".join(f"{v:.3f}" for v in m)})" fill="none" stroke="{ink}" '
-            f'stroke-width="{FACE_STROKE}" stroke-linecap="round" stroke-linejoin="round">'
+            f'stroke-width="{stroke}" stroke-linecap="round" stroke-linejoin="round">'
             f'{COMPONENTS[name][1]}</g>')
 
 def component_svg(name):
@@ -394,12 +403,22 @@ def component_svg(name):
     return _svg(128, 128, f'<rect x="4" y="4" width="120" height="120" rx="28" fill="{NIGHT}"/>'
                 + _fit(EXTENT_TILE, kernel=kernel, frame_ink=frame_ink, face=face))
 
+def component_small_svg(name):
+    """The cut of a component for 64, 48 and 32 px, on the full-bleed tile of the server."""
+    kernel, frame_ink = component_colours(name)
+    edge = TILE_EDGE_W * SMALL_BOOST
+    face = None if COMPONENTS[name][0] is None else (
+        lambda s: screen(name, kernel[0], s, edge, SMALL_GLYPH, SMALL_STROKE))
+    return _svg(128, 128, f'<rect x="0" y="0" width="128" height="128" rx="26" fill="{NIGHT}"/>'
+                + _fit(EXTENT_BLEED, frame_w=FRAME_W * SMALL_BOOST, edge_w=edge, scale=SMALL_SCALE,
+                       kernel=kernel, frame_ink=frame_ink, face=face))
+
 def _hexagon(r, cx=64.0, cy=64.0):
     return [(cx + r * math.sin(math.radians(a)), cy - r * math.cos(math.radians(a)))
             for a in range(0, 360, 60)]
 
-def component_favicon_svg(name):
-    """The small cut, drawn flat: a solid hexagon in the hue with the glyph cut out of it. The
+def component_tiny_svg(name):
+    """The cut for 16 px, drawn flat: a solid hexagon in the hue with the glyph cut out of it. The
     server is a flat cube, its 3 faces in the tile colours and the kernel's tile on top."""
     ground = f'<rect x="0" y="0" width="128" height="128" rx="26" fill="{NIGHT}"/>'
     if COMPONENTS[name][0] is None:
@@ -415,7 +434,6 @@ def component_favicon_svg(name):
 
 # ---------------------------------------------------------------- rasterising
 RESVG = shutil.which("resvg")
-FAVICON_BOOST = 1.8      # stroke scale for the smallest cut
 
 def png(svg_path, out, width):
     if RESVG is None:
@@ -433,7 +451,7 @@ def main():
     for name, text in svgs.items(): write(os.path.join(BRAND, name), text)
     b = lambda n: os.path.join(BRAND, n); p = lambda n: os.path.join(pngdir, n)
     for sz in (512, 256, 180, 128): png(b("icon.svg"), p(f"icon-{sz}.png"), sz)
-    for sz in (48, 32): png(b("favicon.svg"), p(f"favicon-{sz}.png"), sz)
+    for sz in (64, 48, 32): png(b("favicon.svg"), p(f"favicon-{sz}.png"), sz)
     png(b("icon-mono.svg"), p("icon-mono-512.png"), 512)
     png(b("wordmark.svg"), p("wordmark.png"), 1120)
     png(b("wordmark-dark.svg"), p("wordmark-dark.png"), 1120)
@@ -441,23 +459,27 @@ def main():
     # published READMEs still link png/lockup.png; it carries the banner
     shutil.copyfile(p("banner.png"), p("lockup.png"))
     scratch = os.path.join(HERE, "variants"); os.makedirs(scratch, exist_ok=True)
-    # at the smallest cut a hairline falls under a pixel, so it is drawn from a thicker one
+    # at 16 px the isometric mark is a smear, so the cut is drawn flat
     tiny = os.path.join(scratch, "favicon-tiny.svg")
-    write(tiny, favicon_svg(boost=FAVICON_BOOST)); png(tiny, p("favicon-16.png"), 16)
+    write(tiny, component_tiny_svg("loken")); png(tiny, p("favicon-16.png"), 16)
     # the org avatar: square to the edge, since GitHub applies its own crop (square, rounded,
     # circular); a rounded source would read as a double round with page-coloured corners
     avatar = os.path.join(scratch, "avatar.svg")
-    write(avatar, favicon_svg(rx=0)); png(avatar, p("avatar-512.png"), 512)
-    Image.open(p("favicon-48.png")).save(p("favicon.ico"), sizes=[(16, 16), (32, 32), (48, 48)])
+    write(avatar, favicon_svg(rx=0, boost=1.0, scale=BLOCK_SCALE)); png(avatar, p("avatar-512.png"), 512)
+    # each size of the icon file is its own cut, none is scaled down from another
+    cuts = [Image.open(p(f"favicon-{sz}.png")) for sz in (16, 32, 48)]
+    cuts[2].save(p("favicon.ico"), sizes=[(16, 16), (32, 32), (48, 48)], append_images=cuts[:2])
     if os.path.isdir(PROFILE):
         shutil.copyfile(p("icon-512.png"), os.path.join(PROFILE, "icon.png"))
         shutil.copyfile(p("banner.png"), os.path.join(PROFILE, "banner.png"))
-    cdir = os.path.join(BRAND, "components"); cpng = os.path.join(cdir, "png"); os.makedirs(cpng, exist_ok=True)
+    cdir = os.path.join(BRAND, "components"); cpng = os.path.join(cdir, "png")
+    shutil.rmtree(cdir, ignore_errors=True); os.makedirs(cpng)
     for name in COMPONENTS:
-        icon = os.path.join(cdir, f"{name}.svg"); fav = os.path.join(cdir, f"{name}-favicon.svg")
-        write(icon, component_svg(name)); write(fav, component_favicon_svg(name))
-        for sz in (512, 256, 128): png(icon, os.path.join(cpng, f"{name}-{sz}.png"), sz)
-        for sz in (48, 32, 16): png(fav, os.path.join(cpng, f"{name}-favicon-{sz}.png"), sz)
+        cuts = {"": (component_svg, (512, 256, 128)), "-small": (component_small_svg, (64, 48, 32)),
+                "-tiny": (component_tiny_svg, (16,))}
+        for suffix, (draw, sizes) in cuts.items():
+            path = os.path.join(cdir, f"{name}{suffix}.svg"); write(path, draw(name))
+            for sz in sizes: png(path, os.path.join(cpng, f"{name}{suffix}-{sz}.png"), sz)
     print("assets written: brand/, brand/png/, brand/components/, profile/")
 
 if __name__ == "__main__":
