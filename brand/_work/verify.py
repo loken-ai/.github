@@ -110,6 +110,8 @@ def kind_at(gp):
     return "other"
 
 n_grid = 2; off = (gen.N - n_grid) / 2
+mid_c = gen.N / 2; sc = gen.BLOCK_SCALE
+scaled = lambda v: mid_c + (v - mid_c) * sc        # the block is scaled about the centre of the box
 faces = []
 for i in range(n_grid):
     for j in range(n_grid):
@@ -117,9 +119,9 @@ for i in range(n_grid):
             lit = (i, j, k) == gen.LIT
             z = k + off + (gen.LIFT if lit else 0)
             ii, jj = i + off, j + off
-            faces.append(([gen.iso(ii, jj, z + 1), gen.iso(ii + 1, jj, z + 1),
-                           gen.iso(ii + 1, jj + 1, z + 1), gen.iso(ii, jj + 1, z + 1)],
-                          ii + jj + z + 1.5))
+            top = lambda a, b: gen.iso(scaled(a), scaled(b), scaled(z + 1))
+            faces.append(([top(ii, jj), top(ii + 1, jj), top(ii + 1, jj + 1), top(ii, jj + 1)],
+                          3 * mid_c + (ii + jj + z + 1.5 - 3 * mid_c) * sc))
 
 def crossings(p, q, poly):
     out = []
@@ -158,6 +160,88 @@ for corner in gen.CORNERS:
     got = patch[np.abs(patch - np.array(want)).sum(axis=1).argmin()]
     worst = max(worst, max(abs(int(g) - w) for g, w in zip(got, want)))
 check(worst <= 12, "no join is darker than the edges that meet there", f"largest gap {worst}")
+
+# ---- the components: the mark of the server worn with a hue, a larger block and a screen
+print("components/")
+CD = os.path.join(B, "components"); CP = os.path.join(CD, "png")
+HEX = lambda c: np.array([int(c[i:i + 2], 16) for i in (1, 3, 5)])
+
+def hull(points):
+    pts = sorted(set(points))
+    def half(seq):
+        out = []
+        for q in seq:
+            while len(out) >= 2 and (out[-1][0] - out[-2][0]) * (q[1] - out[-2][1]) - (out[-1][1] - out[-2][1]) * (q[0] - out[-2][0]) <= 0:
+                out.pop()
+            out.append(q)
+        return out[:-1]
+    return half(pts) + half(pts[::-1])
+
+box_hull = hull([gen.iso(*[c * gen.N for c in corner]) for corner in gen.CORNERS])
+def inside(pt, poly):
+    return all((b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0]) >= -1e-6
+               for a, b in zip(poly, poly[1:] + poly[:1]))
+
+grow = []
+for i in (gen.LO, gen.HI):
+    for j in (gen.LO, gen.HI):
+        for k in (gen.LO, gen.HI + gen.LIFT):
+            c = gen.N / 2
+            grow.append(gen.iso(c + (i - c) * gen.BLOCK_SCALE, c + (j - c) * gen.BLOCK_SCALE,
+                                c + (k - c) * gen.BLOCK_SCALE))
+check(all(inside(q, box_hull) for q in grow), "the enlarged block, raised tile included, stays inside the box")
+
+check(open(os.path.join(CD, "loken.svg")).read() == open(os.path.join(B, "icon.svg")).read(),
+      "loken: the component icon is icon.svg")
+favs = {}
+for name, (hue, _) in gen.COMPONENTS.items():
+    kernel, frame_ink = gen.component_colours(name)
+    icon = os.path.join(CD, f"{name}.svg"); fav = os.path.join(CD, f"{name}-favicon.svg")
+    check(os.path.exists(icon) and os.path.exists(fav), f"{name}: icon and favicon exist")
+    raw = open(icon).read() + open(fav).read()
+    check("<text" not in raw and "font-family" not in raw, f"{name}: no text, no font")
+    root = ET.parse(icon).getroot(); c = counts(root)
+    want = 3 + tiles * 3 + (0 if hue is None else 1)
+    check(c["polygon"] == want and c["line"] == len(gen.EDGES) - 3,
+          f"{name}: walls, tiles{'' if hue is None else ', screen'} and 9 edges", f"got {c}")
+    allowed = PALETTE | set(kernel) | {gen.SCREEN}
+    fills = {el.get("fill") for el in root.iter(NS + "polygon")}
+    check(fills <= allowed, f"{name}: flat fills stay in the palette", f"outside: {sorted(fills - allowed)}")
+    lit = [el for el in root.iter(NS + "polygon") if el.get("fill") == kernel[0]]
+    check(len(lit) == 1, f"{name}: one tile is the kernel's", f"got {len(lit)}")
+    froot = ET.parse(fav).getroot()
+    shapes = [el.get("fill") for el in froot.iter(NS + "polygon")]
+    check(len(shapes) == (3 if hue is None else 1) and not list(froot.iter(NS + "linearGradient")),
+          f"{name}: the favicon is flat", f"got {len(shapes)} polygons")
+    for sz in (512, 256, 128):
+        path = os.path.join(CP, f"{name}-{sz}.png")
+        check(os.path.exists(path) and Image.open(path).size == (sz, sz), f"{name}-{sz}.png")
+    for sz in (48, 32, 16):
+        path = os.path.join(CP, f"{name}-favicon-{sz}.png")
+        check(os.path.exists(path) and Image.open(path).size == (sz, sz), f"{name}-favicon-{sz}.png")
+    a = np.array(Image.open(os.path.join(CP, f"{name}-512.png")).convert("RGB")).astype(int)
+    ink = np.abs(a - HEX(gen.NIGHT)).max(axis=2) > 24
+    ys, xs = np.where(ink)
+    ml, mr, mt, mb = xs.min(), 511 - xs.max(), ys.min(), 511 - ys.max()
+    check(abs(ml - mr) <= 2 and abs(mt - mb) <= 2, f"{name}: the mark is centred on the tile",
+          f"left={ml} right={mr} top={mt} bottom={mb}")
+    f16 = np.array(Image.open(os.path.join(CP, f"{name}-favicon-16.png")).convert("RGB")).astype(int)
+    favs[name] = f16
+    drawn = (np.abs(f16 - HEX(gen.NIGHT)).max(axis=2) > 24).sum()
+    check(drawn >= 100, f"{name}: the favicon survives at 16 px", f"drawn pixels {drawn}")
+    if hue is not None:
+        hexcol = HEX(gen.hue_of(gen.KERNEL[0], hue))
+        body = np.abs(f16 - hexcol).max(axis=2) < 40
+        cut = np.abs(f16 - HEX(gen.NIGHT)).max(axis=2) < 40
+        yy, xx = np.where(body)
+        inner = cut[yy.min():yy.max() + 1, xx.min():xx.max() + 1].sum()
+        check(inner >= 8, f"{name}: the glyph is cut out of the hexagon at 16 px", f"{inner} ground pixels")
+
+names = list(favs); worst = 255
+for x in range(len(names)):
+    for y in range(x + 1, len(names)):
+        worst = min(worst, np.abs(favs[names[x]] - favs[names[y]]).mean())
+check(worst > 12, "the favicons differ from each other at 16 px", f"closest pair differs by {worst:.1f}")
 
 print()
 print("FAILURES: " + ", ".join(fails) if fails else "all checks passed")

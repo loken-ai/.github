@@ -15,7 +15,7 @@ those SVGs with resvg, so vector and raster cannot drift. Run from this folder:
 
     python3 gen.py      # write ../*.svg, ../png/*, ../../profile/*
 """
-import math, os, re, shutil, subprocess, sys
+import colorsys, math, os, re, shutil, subprocess, sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
@@ -42,6 +42,7 @@ S3 = math.sqrt(3) / 2
 U = 26.0                 # one cell of the box, in drawing units
 N = 3                    # the box is N cells on a side
 LIFT = 0.22              # how far the kernel's tile stands off the block
+BLOCK_SCALE = 1.3        # the block grows about the centre of the box: 1.3 fills it, 1.45 crosses the outline
 INSET = 0.0              # tiles touch; the white outline is what counts them
 TILE_EDGE_W = 1.1
 FRAME_W = 4.6
@@ -108,8 +109,13 @@ def tile_faces(i, j, k, cols, inset=INSET, edge=TILE_EDGE, sw=TILE_EDGE_W):
     return [(d + 1.5, _poly(top, cols[0], edge, sw)), (d + 1.42, _poly(right, cols[1], edge, sw)),
             (d + 1.4, _poly(left, cols[2], edge, sw))]
 
-def mark(ground=NIGHT, n=2, frame_w=FRAME_W, edge_w=TILE_EDGE_W, one_ink=None):
-    """The whole mark, drawn far to near. `one_ink` flattens it to a single colour."""
+def mark(ground=NIGHT, n=2, frame_w=FRAME_W, edge_w=TILE_EDGE_W, one_ink=None,
+         scale=BLOCK_SCALE, kernel=KERNEL, frame_ink=FRAME, face=None):
+    """The whole mark, drawn far to near. `one_ink` flattens it to a single colour.
+
+    The block is drawn at `scale` about the centre of the box. A component mark passes `kernel`
+    and `frame_ink` to take its hue, and `face`, a function of the scale, for what is drawn on
+    the block. The defaults give the mark of the server."""
     if one_ink:
         wall_c = "#FFFFFF"; tile_c = (one_ink, one_ink, one_ink); kern_c = (one_ink,) * 3
         frame_defs, frame_art = "", "".join(
@@ -119,8 +125,8 @@ def mark(ground=NIGHT, n=2, frame_w=FRAME_W, edge_w=TILE_EDGE_W, one_ink=None):
             for a, b in EDGES if NEAR_CORNER not in (CORNERS[a], CORNERS[b]))
         edge_c = "#FFFFFF"
     else:
-        wall_c = WALL; tile_c = TILE; kern_c = KERNEL; edge_c = TILE_EDGE
-        frame_defs, frame_art = frame(ground, frame_w)
+        wall_c = WALL; tile_c = TILE; kern_c = kernel; edge_c = TILE_EDGE
+        frame_defs, frame_art = frame(ground, frame_w, ink=frame_ink)
     prims = []
     off = (N - n) / 2
     for i in range(n):
@@ -128,9 +134,14 @@ def mark(ground=NIGHT, n=2, frame_w=FRAME_W, edge_w=TILE_EDGE_W, one_ink=None):
             for k in range(n):
                 lit = (i, j, k) == LIT
                 prims += tile_faces(i + off, j + off, k + off + (LIFT if lit else 0),
-                                    kern_c if lit else tile_c, edge=edge_c, sw=edge_w)
+                                    kern_c if lit else tile_c, edge=edge_c, sw=edge_w / scale)
     prims.sort(key=lambda p: p[0])
-    art = walls(wall_c) + frame_art + "".join(s for _, s in prims)
+    tiles_art = "".join(s for _, s in prims) + (face(scale) if face else "")
+    if scale != 1.0:
+        cx, cy = iso(N / 2, N / 2, N / 2)
+        tiles_art = (f'<g transform="translate({cx:.2f},{cy:.2f}) scale({scale:g}) '
+                     f'translate({-cx:.2f},{-cy:.2f})">{tiles_art}</g>')
+    art = walls(wall_c) + frame_art + tiles_art
     pts = [iso(i * N, j * N, k * N) for i in (0, 1) for j in (0, 1) for k in (0, 1)]
     xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
     pad = frame_w / 2
@@ -329,6 +340,79 @@ def banner_svg(W=1280.0, H=420.0, rx=24.0):
                 f'<g transform="translate({tx:.2f},{ty + wh + sub_gap:.2f})">'
                 f'<path d="{sub}" fill="{SUBTLE}" fill-rule="evenodd"/></g>')
 
+
+# ---------------------------------------------------------------- the components
+# Each component wears the mark of the server with 2 changes: the frame and the raised tile take
+# its hue, and the big left face of the block becomes a dark screen carrying its glyph, laid in
+# the plane of the face. Glyphs are strokes in a box of +-10 units.
+SCREEN = "#06323A"       # the screen on the left face of the block
+FACE_GLYPH = 0.85        # half the glyph box, in cells of the block
+FACE_STROKE = 2.6        # glyph stroke, in glyph units
+FLAT_HEX = 57.0          # radius of the hexagon of the flat favicon
+FLAT_SCALE = 3.1         # glyph units to favicon units
+FLAT_STROKE = 4.8
+LO, HI = (N - 2) / 2, (N + 2) / 2    # where the block of 2 cells sits in the box
+
+COMPONENTS = {
+    "loken": (None, ""),
+    "lokraft": (265, '<path d="M-9,-7 H9 V4 H0 L-5,9 V4 H-9 Z"/>'),
+    "lokode": (40, '<path d="M-9,-6 L-2,0 L-9,6"/><path d="M2,7 H10"/>'),
+    "lokprof": (8, '<circle cx="0" cy="2" r="8"/><path d="M0,2 V-3"/><path d="M-3,-9 H3"/>'),
+    "benchmarks": (85, '<path d="M-8,9 V3 M0,9 V-2 M8,9 V-8"/>'),
+    "lokpit": (325, '<circle cx="0" cy="-7" r="2.6"/><circle cx="-8" cy="7" r="2.6"/>'
+                    '<circle cx="8" cy="7" r="2.6"/><path d="M-1.5,-4.6 L-6.5,4.6 M1.5,-4.6 L6.5,4.6 M-5,7 H5"/>'),
+    "alma": (205, '<path d="M-5,-5 V5 M0,-9 V9 M5,-4 V4 M-10,0 V0 M10,-1 V1"/>'),
+}
+
+def hue_of(colour, hue):
+    """`colour` turned to `hue` degrees, keeping its lightness and saturation."""
+    r, g, b = (int(colour[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    _, l, s = colorsys.rgb_to_hls(r, g, b)
+    return "#%02X%02X%02X" % tuple(round(v * 255) for v in colorsys.hls_to_rgb(hue / 360, l, s))
+
+def component_colours(name):
+    """(kernel, frame) of a component: the master's own for the server."""
+    hue = COMPONENTS[name][0]
+    if hue is None: return KERNEL, FRAME
+    return tuple(hue_of(c, hue) for c in KERNEL), hue_of(FRAME, hue)
+
+def screen(name, ink, scale):
+    """The left face of the block as one dark panel, and the glyph of `name` laid on it."""
+    panel = _poly([iso(LO, HI, HI), iso(HI, HI, HI), iso(HI, HI, LO), iso(LO, HI, LO)],
+                  SCREEN, TILE_EDGE, TILE_EDGE_W / scale)
+    o = iso(N / 2, HI, N / 2); ex = iso(1, HI, 0); e0 = iso(0, HI, 0); ey = iso(0, HI, -1)
+    f = FACE_GLYPH / 10
+    m = ((ex[0] - e0[0]) * f, (ex[1] - e0[1]) * f, (ey[0] - e0[0]) * f, (ey[1] - e0[1]) * f, o[0], o[1])
+    return (panel + f'<g transform="matrix({",".join(f"{v:.3f}" for v in m)})" fill="none" stroke="{ink}" '
+            f'stroke-width="{FACE_STROKE}" stroke-linecap="round" stroke-linejoin="round">'
+            f'{COMPONENTS[name][1]}</g>')
+
+def component_svg(name):
+    """The icon of a component, on the tile of the server."""
+    kernel, frame_ink = component_colours(name)
+    face = None if COMPONENTS[name][0] is None else (lambda s: screen(name, kernel[0], s))
+    return _svg(128, 128, f'<rect x="4" y="4" width="120" height="120" rx="28" fill="{NIGHT}"/>'
+                + _fit(EXTENT_TILE, kernel=kernel, frame_ink=frame_ink, face=face))
+
+def _hexagon(r, cx=64.0, cy=64.0):
+    return [(cx + r * math.sin(math.radians(a)), cy - r * math.cos(math.radians(a)))
+            for a in range(0, 360, 60)]
+
+def component_favicon_svg(name):
+    """The small cut, drawn flat: a solid hexagon in the hue with the glyph cut out of it. The
+    server is a flat cube, its 3 faces in the tile colours and the kernel's tile on top."""
+    ground = f'<rect x="0" y="0" width="128" height="128" rx="26" fill="{NIGHT}"/>'
+    if COMPONENTS[name][0] is None:
+        h = _hexagon(56); c = (64.0, 64.0)
+        return _svg(128, 128, ground
+                    + _poly([h[0], h[1], c, h[5]], KERNEL[0]) + _poly([h[1], h[2], h[3], c], TILE[1])
+                    + _poly([h[5], c, h[3], h[4]], TILE[2]))
+    hue = hue_of(KERNEL[0], COMPONENTS[name][0])
+    return _svg(128, 128, ground + _poly(_hexagon(FLAT_HEX), hue, hue, 3.0)
+                + f'<g transform="translate(64,65) scale({FLAT_SCALE})" fill="none" stroke="{NIGHT}" '
+                f'stroke-width="{FLAT_STROKE}" stroke-linecap="round" stroke-linejoin="round">'
+                f'{COMPONENTS[name][1]}</g>')
+
 # ---------------------------------------------------------------- rasterising
 RESVG = shutil.which("resvg")
 FAVICON_BOOST = 1.8      # stroke scale for the smallest cut
@@ -368,7 +452,13 @@ def main():
     if os.path.isdir(PROFILE):
         shutil.copyfile(p("icon-512.png"), os.path.join(PROFILE, "icon.png"))
         shutil.copyfile(p("banner.png"), os.path.join(PROFILE, "banner.png"))
-    print("assets written: brand/, brand/png/, profile/")
+    cdir = os.path.join(BRAND, "components"); cpng = os.path.join(cdir, "png"); os.makedirs(cpng, exist_ok=True)
+    for name in COMPONENTS:
+        icon = os.path.join(cdir, f"{name}.svg"); fav = os.path.join(cdir, f"{name}-favicon.svg")
+        write(icon, component_svg(name)); write(fav, component_favicon_svg(name))
+        for sz in (512, 256, 128): png(icon, os.path.join(cpng, f"{name}-{sz}.png"), sz)
+        for sz in (48, 32, 16): png(fav, os.path.join(cpng, f"{name}-favicon-{sz}.png"), sz)
+    print("assets written: brand/, brand/png/, brand/components/, profile/")
 
 if __name__ == "__main__":
     main()
