@@ -112,7 +112,7 @@ def tile_faces(i, j, k, cols, inset=INSET, edge=TILE_EDGE, sw=TILE_EDGE_W):
             (d + 1.4, _poly(left, cols[2], edge, sw))]
 
 def mark(ground=NIGHT, n=2, frame_w=FRAME_W, edge_w=TILE_EDGE_W, one_ink=None,
-         scale=BLOCK_SCALE, kernel=KERNEL, frame_ink=FRAME, face=None):
+         scale=BLOCK_SCALE, kernel=KERNEL, frame_ink=FRAME, face=None, wall=WALL):
     """The whole mark, drawn far to near. `one_ink` flattens it to a single colour.
 
     The block is drawn at `scale` about the centre of the box: `BLOCK_SCALE` for the icon and
@@ -128,7 +128,7 @@ def mark(ground=NIGHT, n=2, frame_w=FRAME_W, edge_w=TILE_EDGE_W, one_ink=None,
             for a, b in EDGES if NEAR_CORNER not in (CORNERS[a], CORNERS[b]))
         edge_c = "#FFFFFF"
     else:
-        wall_c = WALL; tile_c = TILE; kern_c = kernel; edge_c = TILE_EDGE
+        wall_c = wall; tile_c = TILE; kern_c = kernel; edge_c = TILE_EDGE
         frame_defs, frame_art = frame(ground, frame_w, ink=frame_ink)
     prims = []
     off = (N - n) / 2
@@ -326,20 +326,29 @@ def wordmark_svg(night=False):
     return _svg(round(w, 2), round(h, 2),
                 f'<g transform="translate({PAD:.2f},{PAD:.2f})">{word}</g>')
 
-def banner_svg(W=1280.0, H=420.0, rx=24.0):
-    """The header image: mark, written word and line on the dark ground the mark is built for."""
-    defs, art, box = mark(ground=NIGHT)
+PAPER = "#FFFFFF"        # the ground a transparent banner for light pages fades into
+WALL_PAPER = "#E4E9F5"   # the faces of the box on paper, where white would vanish
+
+def banner_svg(W=1280.0, H=420.0, rx=24.0, ground="night"):
+    """The header image: mark, written word and line.
+
+    `ground` is "night" for the dark panel the mark is built for, "dark" or "light" for the same
+    drawing on no panel, to sit on a dark or on a light page."""
+    light = ground == "light"
+    fade_to = PAPER if light else NIGHT
+    defs, art, box = mark(ground=fade_to, wall=WALL_PAPER if light else WALL)
     bw = box[2] - box[0]; bh = box[3] - box[1]; s = 280.0 / max(bw, bh)
     cx = (box[0] + box[2]) / 2; cy = (box[1] + box[3]) / 2
-    word, ww, wh = written(INK_NIGHT, 104.0)
+    word, ww, wh = written(INK_PAPER if light else INK_NIGHT, 104.0)
     sub, sw = text_paths(SUBLINE, SUB_CAP, SUB_TRACK)
     gap = 64.0; sub_gap = 30.0
     block = bw * s + gap + max(ww, sw)
     mx = (W - block) / 2 + bw * s / 2
     tx = (W - block) / 2 + bw * s + gap
     ty = (H - (wh + sub_gap + SUB_CAP)) / 2
-    return _svg(W, H, defs +
-                f'<rect x="0" y="0" width="{W:g}" height="{H:g}" rx="{rx:g}" fill="{NIGHT}"/>'
+    panel = (f'<rect x="0" y="0" width="{W:g}" height="{H:g}" rx="{rx:g}" fill="{NIGHT}"/>'
+             if ground == "night" else "")
+    return _svg(W, H, defs + panel +
                 f'<g transform="translate({mx:.2f},{H / 2:g}) scale({s:.4f}) '
                 f'translate({-cx:.2f},{-cy:.2f})">{art}</g>'
                 f'<g transform="translate({tx:.2f},{ty:.2f})">{word}</g>'
@@ -447,7 +456,8 @@ def main():
     pngdir = os.path.join(BRAND, "png"); os.makedirs(pngdir, exist_ok=True)
     svgs = {"icon.svg": icon_svg(), "favicon.svg": favicon_svg(), "icon-mono.svg": mono_svg(),
             "wordmark.svg": wordmark_svg(), "wordmark-dark.svg": wordmark_svg(night=True),
-            "banner.svg": banner_svg()}
+            "banner.svg": banner_svg(), "banner-dark.svg": banner_svg(ground="dark"),
+            "banner-light.svg": banner_svg(ground="light")}
     for name, text in svgs.items(): write(os.path.join(BRAND, name), text)
     b = lambda n: os.path.join(BRAND, n); p = lambda n: os.path.join(pngdir, n)
     for sz in (512, 256, 180, 128): png(b("icon.svg"), p(f"icon-{sz}.png"), sz)
@@ -456,6 +466,8 @@ def main():
     png(b("wordmark.svg"), p("wordmark.png"), 1120)
     png(b("wordmark-dark.svg"), p("wordmark-dark.png"), 1120)
     png(b("banner.svg"), p("banner.png"), 1280)
+    png(b("banner-dark.svg"), p("banner-dark.png"), 1280)
+    png(b("banner-light.svg"), p("banner-light.png"), 1280)
     # published READMEs still link png/lockup.png; it carries the banner
     shutil.copyfile(p("banner.png"), p("lockup.png"))
     scratch = os.path.join(HERE, "variants"); os.makedirs(scratch, exist_ok=True)

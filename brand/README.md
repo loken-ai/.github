@@ -8,6 +8,7 @@
 | **Icon** | The mark on a dark square tile | App icon, favicon, org avatar |
 | **Wordmark** | The word *loken*, written | Anywhere the mark is already present |
 | **Banner** | Mark, word and line on a dark panel | Every page header, in either theme |
+| **Banner, no panel** | The same, transparent, in a dark and a light cut | A page whose ground is not the panel's |
 
 The mark is an open box seen in isometry: the floor and the two far walls are white, the
 outline fades toward the back, and the front is left open. Inside sits a block of 8 tiles,
@@ -36,10 +37,11 @@ set in geometric capitals: the line belongs to the mark, not to the writing.
 ## Files
 - `icon.svg`, `favicon.svg` (full-bleed, the cut for 64, 48 and 32 px), `icon-mono.svg` (one ink)
 - `wordmark.svg`, `wordmark-dark.svg`: the written word, for paper and for dark grounds
-- `banner.svg`
+- `banner.svg`: on its dark panel
+- `banner-dark.svg`, `banner-light.svg`: the same banner with no panel, for a dark page and for a light page. On paper the faces of the box are pale blue instead of white and the word is dark.
 - `png/`: `icon-{512,256,180,128}.png`, `favicon-{64,48,32,16}.png`, `favicon.ico` (16/32/48),
-  `icon-mono-512.png`, `wordmark.png`, `wordmark-dark.png`, `banner.png`; `lockup.png` is a
-  copy of the banner, kept for READMEs published before the rename
+  `icon-mono-512.png`, `wordmark.png`, `wordmark-dark.png`, `banner.png`, `banner-dark.png`, `banner-light.png`.
+  `lockup.png` is a copy of the banner, kept for READMEs published before the rename
 - `png/avatar-512.png`: the **org avatar**. Square to the edge, no rounding of its own:
   GitHub puts the avatar in its own container (square, rounded, or circular depending on the
   surface), so a rounded source would read as a double round and its transparent corners would
